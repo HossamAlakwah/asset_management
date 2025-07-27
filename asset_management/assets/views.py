@@ -268,33 +268,27 @@ def download_asset_template(request):
     return generate_asset_template()
 
 def all_assets_log(request, slug):
-    branch = get_object_or_404(Branch, slug=slug)
-    if slug != 'All':
-        # Get the branch object
-        
-        
-        # Get assets currently in this branch
+    if slug == 'All':
+        logs = AssetLog.objects.all().order_by('-change_time')
+        context = {
+            'logs': logs,
+            'branch': None,
+            'current_branch_slug': 'All',
+        }
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        print(branch)
         asset_ids = Asset.objects.filter(branch=branch).values_list('id', flat=True)
-
-        # Get logs for those assets only
         logs = AssetLog.objects.filter(asset_id__in=asset_ids).order_by('-change_time')
 
         context = {
             'logs': logs,
             'branch': branch,
-            'current_branch_slug': branch.slug,  # Useful for displaying branch info or a back button
-        }
-    else:
-        # All logs for all assets, regardless of branch
-        logs = AssetLog.objects.all().order_by('-change_time')
-
-        context = {
-            'logs': logs,
-            'branch': branch, 
-            'current_branch_slug': branch.slug, # No specific branch
+            'current_branch_slug': branch.slug,
         }
 
     return render(request, 'assets/assets_logs.html', context)
+
 
 @login_required
 def branch_assets(request, slug):
