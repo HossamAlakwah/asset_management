@@ -1,0 +1,38 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Import Consumables</title>
+    <link rel="stylesheet" href="{% static 'css/branches.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.7.2/css/all.css">
+</head>
+<body>
+
+<div class="header">
+    <h1 class="head-office-title">Import Consumables</h1>
+</div>
+
+<div class="branch-container card-container">
+    <form method="post" enctype="multipart/form-data" class="form-card">
+        {% csrf_token %}
+        {{ form.as_p }}
+
+        <button type="submit" class="equipment-btn">
+            <i class="fa-solid fa-upload"></i> Upload File
+        </button>
+    </form>
+
+    <a href="{% url 'consumables_dashboard' %}" class="back-btn">
+        <i class="fas fa-arrow-left"></i> Back to Dashboard
+    </a>
+</div>
+
+<div class="footer">
+    <p>Asset Management System &copy; 2025 | All rights reserved</p>
+    <p><strong>Powered by Hossam Alakwah</strong></p>
+</div>
+
+</body>
+</html>

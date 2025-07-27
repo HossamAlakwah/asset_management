@@ -1,0 +1,141 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Employees</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Employees</h1>
+            <a href="{% url 'branches' %}" class="header-back-btn">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+
+        {% if messages %}
+            <div class="flash-messages">
+                {% for message in messages %}
+                    <div class="flash-message {{ message.tags }}">
+                        <i class="fas 
+                            {% if message.tags == 'success' %}fa-check-circle
+                            {% elif message.tags == 'error' %}fa-exclamation-circle
+                            {% else %}fa-info-circle
+                            {% endif %}"></i>
+                        {{ message }}
+                        <button type="button" class="close"><i class="fas fa-times"></i></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="controls">
+            <div class="button-group">
+                <a href="{% url 'create_employee' %}" class="btn btn-primary" style="text-decoration: none;">
+                    <i class="fas fa-user-plus" ></i> Add New Employee
+                </a>
+
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="employeeTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Department</th>
+                        <th>Title</th>
+                        <th>Email</th>
+                        <th>Creation Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for employee in employees %}
+                    <tr>
+                        <td>{{ employee.name }}</td>
+                        <td>{{ employee.department }}</td>
+                        <td>{{ employee.title }}</td>
+                        <td>{{ employee.email }}</td>
+                        <td>{{ employee.creation_date|date:"Y-m-d" }}</td>
+                        <td class="action-icons">
+                            <a href="{% url 'edit_employee' employee.id %}" class="action-btn" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </td>
+
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6">No employees found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal to Create Employee -->
+    <div id="employeeModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add New Employee</h2>
+            <form method="post">
+                {% csrf_token %}
+                <label>Name:</label>
+                <input type="text" name="name" required><br>
+
+                <label>Department:</label>
+                <input type="text" name="department" required><br>
+
+                <label>Title:</label>
+                <input type="text" name="title" required><br>
+
+                <label>Email:</label>
+                <input type="email" name="email" required><br>
+
+                <label>Assign Asset (optional):</label>
+                <select name="assigned_asset">
+                    <option value="">-- Select Asset --</option>
+                    {% for asset in assets %}
+                        <option value="{{ asset.id }}">{{ asset.product }} - {{ asset.serial }}</option>
+                    {% endfor %}
+                </select><br><br>
+
+                <button type="submit" class="btn btn-success">Create Employee</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Auto-dismiss flash messages
+        document.querySelectorAll(".flash-message").forEach(function(msg) {
+            setTimeout(() => msg.remove(), 5000);
+        });
+
+        // Close modal
+        document.querySelectorAll(".modal .close").forEach(btn => {
+            btn.addEventListener("click", () => btn.closest(".modal").style.display = "none");
+        });
+
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll(".modal");
+            modals.forEach(modal => {
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                }
+            });
+        };
+
+        window.showModal = function(modalId) {
+            document.getElementById(modalId).style.display = "block";
+        };
+    });
+    </script>
+</body>
+</html>

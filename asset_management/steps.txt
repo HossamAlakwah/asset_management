@@ -1,0 +1,7 @@
+1- create model "Table"
+2- Add them to admin
+3- signals
+4- upload excel
+5- extract report
+6- all setup
+7- branch setup

@@ -1,0 +1,338 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Employee: {{ employee.name }}</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <style>
+        .section-label {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+        }
+
+        .styled-asset-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .styled-asset-card {
+            background: rgba(0, 123, 255, 0.1);
+            border: 1px solid rgba(0, 123, 255, 0.2);
+            padding: 14px 16px;
+            border-radius: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            color: #e8f0fe;
+            transition: 0.2s ease;
+        }
+
+        .styled-asset-card:hover {
+            background: rgba(0, 123, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .asset-icon {
+            font-size: 2rem;
+            color: #00d2ff;
+            flex-shrink: 0;
+        }
+
+        .asset-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .asset-header {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .asset-type {
+            font-weight: 400;
+            font-size: 0.95rem;
+            color: #cdddf8;
+        }
+
+        .asset-subtext {
+            font-size: 0.9rem;
+            color: #a3c2f3;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+        }
+
+        .modal-content-large {
+            position: relative;
+            width: 90%;
+            height: 90%;
+            margin: 5vh auto;
+            background: #1e1e2f;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.3);
+        }
+
+        #assetDetailFrame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1 class="title"><i class="fas fa-user-edit"></i> Edit Employee: {{ employee.name }}</h1>
+        <a href="{% url 'employees' %}" class="header-back-btn">
+            <i class="fas fa-arrow-left"></i> Back 
+        </a>
+    </div>
+
+    <div class="glass-card card-accent-top">
+        <h2 class="section-title"><i class="fas fa-id-card"></i> Employee Details</h2>
+
+        <!-- Employee Edit Form -->
+        <form method="POST" class="form-grid">
+            {% csrf_token %}
+
+            <!-- Basic Employee Info -->
+            <div class="form-group">
+                <label for="name">Name:</label>
+                <input type="text" id="name" name="name" value="{{ employee.name }}" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="department">Department:</label>
+                <input type="text" id="department" name="department" value="{{ employee.department }}" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="title">Title:</label>
+                <input type="text" id="title" name="title" value="{{ employee.title }}" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" value="{{ employee.email }}" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label for="branch">Branch:</label>
+                <select id="branch" name="branch" class="form-control" required>
+                    {% for branch in branches %}
+                        <option value="{{ branch.id }}" {% if branch == employee.branch %}selected{% endif %}>
+                            {{ branch.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Assign New Asset -->
+            <!-- <div class="form-group full-width">
+                <label for="assigned_asset">Assign New Asset:</label>
+                <select id="assigned_asset" name="assigned_asset" class="form-control">
+                    <option value="">-- No Asset --</option>
+                    {% for asset in assets %}
+                        <option value="{{ asset.id }}" {% if employee.asset_set.first.id == asset.id %}selected{% endif %}>
+                            {{ asset.serial }} ({{ asset.type }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div> -->
+            <!-- Assign New Asset via Modal -->
+            <div class="form-group full-width">
+                <label>Assign New Asset:</label>
+                <button type="button" class="btn btn-primary" id="openAssetModal">
+                    <i class="fas fa-plus"></i> Assign Asset
+                </button>
+                <input type="hidden" id="assigned_asset" name="assigned_asset">
+                <p id="selectedAssetDisplay" style="margin-top: 10px; color: #0df;">No asset selected.</p>
+            </div>
+
+            <button type="submit" class="save-button full-width">
+                <i class="fas fa-save"></i> Update Employee
+            </button>
+        </form>
+
+        <!-- Assigned Assets Section -->
+        <div class="form-group full-width" style="margin-top: 30px;">
+            <label class="section-label"><i class="fas fa-laptop-code"></i> Currently Assigned Assets</label>
+            {% if employee.asset_set.all %}
+                <div class="styled-asset-list">
+                    {% for asset in employee.asset_set.all %}
+                    <div class="styled-asset-card">
+                        <div class="asset-icon"><i class="fas fa-laptop-code"></i></div>
+                        <div class="asset-content">
+                            <div class="asset-header">
+                                <strong>{{ asset.serial }}</strong>
+                                <span class="asset-type">({{ asset.type }})</span>
+                            </div>
+                            <div class="asset-subtext">{{ asset.product|title }}</div>
+                        </div>
+                        <div class="asset-actions" style="display: flex; gap: 10px; margin-top: 8px;">
+                            <button type="button" class="btn btn-info btn-small view-details-btn" data-asset-id="{{ asset.id }}">
+                                <i class="fas fa-eye"></i> View Details
+                            </button>
+
+                            <!-- Separate unassign form -->
+                            <form method="POST" action="{% url 'unassign_asset' asset.id employee.id %}" style="margin: 0;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-small">
+                                    <i class="fas fa-unlink"></i> Unassign
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p><em>No assets currently assigned.</em></p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal with iframe -->
+<div class="modal" id="assetDetailModal">
+    <div class="modal-content-large">
+        <span class="close-modal">&times;</span>
+        <iframe id="assetDetailFrame" src="" frameborder="0"></iframe>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.view-details-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const assetId = this.getAttribute('data-asset-id');
+            const frame = document.getElementById('assetDetailFrame');
+            const modal = document.getElementById('assetDetailModal');
+
+            frame.src = `/assets/assets/${assetId}/`;
+            modal.style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        });
+    });
+
+    document.querySelector('.close-modal').addEventListener('click', function () {
+        document.getElementById('assetDetailModal').style.display = 'none';
+        document.getElementById('assetDetailFrame').src = '';
+        document.body.style.overflow = 'auto';
+    });
+
+    window.addEventListener('click', function (e) {
+        const modal = document.getElementById('assetDetailModal');
+        if (e.target === modal) {
+            modal.style.display = 'none';
+            document.getElementById('assetDetailFrame').src = '';
+            document.body.style.overflow = 'auto';
+        }
+    });
+</script>
+
+<!-- Asset Selection Modal -->
+<div class="modal" id="assetSelectModal">
+    <div class="modal-content-large">
+        <span class="close-modal">&times;</span>
+        <div style="padding: 20px;">
+            <h3>Select an Asset</h3>
+            <input type="text" id="assetSearchInput" placeholder="Search by serial..." style="width: 100%; padding: 8px; margin-bottom: 10px;">
+
+            <table id="assetTable" class="table">
+                <thead>
+                    <tr>
+                        <th>Serial</th>
+                        <th>Type</th>
+                        <th>Product</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for asset in assets %}
+                    <tr>
+                        <td>{{ asset.serial }}</td>
+                        <td>{{ asset.type }}</td>
+                        <td>{{ asset.product }}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-success assign-asset-btn"
+                                    data-id="{{ asset.id }}" data-label="{{ asset.serial }}">
+                                Assign
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</body>
+<script>
+    // Modal open/close
+    document.getElementById("openAssetModal").onclick = function () {
+        document.getElementById("assetSelectModal").style.display = "block";
+        document.body.style.overflow = "hidden";
+    };
+
+    document.querySelector("#assetSelectModal .close-modal").onclick = function () {
+        document.getElementById("assetSelectModal").style.display = "none";
+        document.body.style.overflow = "auto";
+    };
+
+    // Assign button click
+    document.querySelectorAll(".assign-asset-btn").forEach(button => {
+        button.addEventListener("click", function () {
+            const assetId = this.dataset.id;
+            const assetLabel = this.dataset.label;
+            document.getElementById("assigned_asset").value = assetId;
+            document.getElementById("selectedAssetDisplay").textContent = `Selected Asset: ${assetLabel}`;
+            document.getElementById("assetSelectModal").style.display = "none";
+            document.body.style.overflow = "auto";
+        });
+    });
+
+    // Filter/search
+    document.getElementById("assetSearchInput").addEventListener("input", function () {
+        const filter = this.value.toLowerCase();
+        const rows = document.querySelectorAll("#assetTable tbody tr");
+        rows.forEach(row => {
+            const serial = row.children[0].textContent.toLowerCase();
+            row.style.display = serial.includes(filter) ? "" : "none";
+        });
+    });
+</script>
+
+</html>

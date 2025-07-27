@@ -1,0 +1,359 @@
+/* --- Variables --- */
+:root {
+    --primary-blue: #007BFF;
+    --darker-blue: #0056b3;
+    --accent-blue-branch: #1e2fed; /* Used for branch buttons specifically */
+    --accent-blue-branch-hover: #121c87; /* Darker hover for branch buttons */
+    --red-danger: #dc3545;
+    --darker-red-danger: #c82333;
+    --grey-muted: #6c757d;
+    --green-success: #30bf48; /* Used for back button hover */
+    --text-dark: #333;
+    --text-medium: #555;
+    --border-light: #ddd;
+    --background-light: #ece9e6;
+    --background-white: #ffffff;
+    --shadow-light: rgba(0, 0, 0, 0.1);
+    --shadow-medium: rgba(0, 0, 0, 0.2);
+    --shadow-strong: rgba(0, 0, 0, 0.3);
+    --border-radius-sm: 5px;
+    --border-radius-md: 10px;
+    --border-radius-lg: 15px;
+    --transition-speed: 0.3s;
+}
+
+/* --- General Body & Layout --- */
+body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: linear-gradient(135deg, var(--background-light), var(--background-white));
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh; /* Use min-height to allow content to extend */
+    position: relative;
+    overflow-x: hidden; /* Prevent horizontal scroll on smaller screens */
+}
+
+/* --- Reusable Container Style --- */
+.card-container {
+    background-color: var(--background-white);
+    border-radius: var(--border-radius-lg);
+    box-shadow: 0 15px 30px var(--shadow-medium);
+    padding: 40px;
+    width: 100%;
+    transition: transform var(--transition-speed) ease-out;
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- Header & Titles --- */
+.header {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10; /* Ensure it's above other content */
+    width: 100%; /* Take full width to center text properly */
+    text-align: center; /* Center the text within the header */
+}
+
+.head-office-title,
+.maadi-branch-title,
+.sign-in-heading {
+    font-size: 3rem; /* Adjusted for larger titles */
+    color: var(--text-dark);
+    margin-bottom: 0; /* Handled by container padding or specific elements */
+    font-weight: bold;
+    letter-spacing: -0.05em; /* Slightly tighter letter spacing */
+}
+
+.sign-in-heading {
+    font-size: 2.2rem; /* Slightly smaller for login heading */
+    color: var(--primary-blue);
+    text-align: left;
+    margin-bottom: 30px;
+}
+
+/* --- Form Styles (Login) --- */
+form {
+    max-width: 500px;
+    /* Uses .card-container for shared styles */
+}
+
+label {
+    display: block;
+    margin-bottom: 10px;
+    color: var(--text-medium);
+    font-size: 1.1rem; /* Slightly adjusted font size */
+    font-weight: 500;
+}
+
+input[type="text"],
+input[type="password"] {
+    width: 100%;
+    padding: 15px;
+    margin-bottom: 25px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--border-radius-md);
+    font-size: 1.1rem; /* Consistent input font size */
+    transition: border-color var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.2); /* Softer shadow on focus */
+    outline: none;
+}
+
+input[type="submit"] {
+    width: 100%;
+    padding: 15px;
+    background-color: var(--primary-blue);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-md);
+    font-size: 1.25rem; /* Larger submit button text */
+    cursor: pointer;
+    transition: background-color var(--transition-speed), transform var(--transition-speed), box-shadow var(--transition-speed);
+    margin-top: 20px;
+    font-weight: bold;
+    box-shadow: 0 4px 10px var(--shadow-light); /* Add initial shadow */
+}
+
+input[type="submit"]:hover {
+    background-color: var(--darker-blue);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px var(--shadow-medium); /* Deeper shadow on hover */
+}
+
+input[type="submit"]:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 5px var(--shadow-light);
+}
+
+/* --- Branch & Equipment Buttons --- */
+.branch-container {
+    max-width: 450px; /* Slightly wider for better button fit */
+    /* Inherits .card-container styles */
+    text-align: center;
+}
+
+/* Override padding for branch container specific to its needs if desired */
+.branch-container.card-container {
+    padding: 50px 30px;
+}
+
+
+.branch-buttons,
+.equipment-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px; /* Consistent gap for button lists */
+    margin-top: 30px; /* More space above button groups */
+}
+
+.branch-btn,
+.equipment-btn {
+    display: block;
+    padding: 18px 25px; /* Generous padding for all action buttons */
+    color: white;
+    text-decoration: none;
+    border-radius: var(--border-radius-md);
+    font-size: 1.15rem; /* Slightly larger font */
+    transition: background-color var(--transition-speed), transform var(--transition-speed), box-shadow var(--transition-speed);
+    box-shadow: 0 4px 10px var(--shadow-light);
+    font-weight: 600;
+}
+
+.branch-btn {
+    background-color: var(--accent-blue-branch); /* Distinct color for branch buttons */
+}
+
+.branch-btn:hover {
+    background-color: var(--accent-blue-branch-hover);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px var(--shadow-medium);
+}
+
+.equipment-btn {
+    background-color: var(--primary-blue); /* Default primary color for equipment */
+}
+
+.equipment-btn:hover {
+    background-color: var(--darker-blue);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 15px var(--shadow-medium);
+}
+
+.branch-btn:active,
+.equipment-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 5px var(--shadow-light);
+}
+
+/* --- Logout Button --- */
+.logout-btn {
+    position: absolute;
+    top: 25px; /* Adjusted slightly */
+    left: 25px; /* Adjusted slightly */
+    padding: 10px 18px;
+    background-color: var(--red-danger);
+    color: white;
+    text-decoration: none;
+    border-radius: var(--border-radius-md);
+    font-size: 1rem;
+    transition: background-color var(--transition-speed), transform var(--transition-speed), box-shadow var(--transition-speed);
+    z-index: 20; /* Ensure it's on top of everything */
+    box-shadow: 0 2px 5px var(--shadow-light);
+}
+
+.logout-btn:hover {
+    background-color: var(--darker-red-danger);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px var(--shadow-medium);
+}
+
+.logout-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px var(--shadow-light);
+}
+
+
+/* --- Back Button --- */
+.back-btn {
+    display: inline-block;
+    margin-top: 30px; /* More space above */
+    padding: 12px 22px;
+    background-color: var(--grey-muted);
+    color: white;
+    text-decoration: none;
+    border-radius: var(--border-radius-md);
+    font-size: 1rem;
+    transition: background-color var(--transition-speed), transform var(--transition-speed), box-shadow var(--transition-speed);
+    box-shadow: 0 2px 5px var(--shadow-light);
+}
+
+.back-btn:hover {
+    background-color: var(--green-success); /* Changed to green on hover for 'go back' feeling */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px var(--shadow-medium);
+}
+
+.back-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px var(--shadow-light);
+}
+
+
+/* --- Responsive Design --- */
+@media (max-width: 768px) {
+    .card-container {
+        padding: 30px 25px;
+        margin: 20px; /* Add some margin on smaller screens */
+    }
+
+    .head-office-title,
+    .maadi-branch-title {
+        font-size: 2.5rem;
+        top: 15px; /* Adjust header position */
+    }
+
+    .sign-in-heading {
+        font-size: 1.8rem;
+    }
+
+    label {
+        font-size: 1rem;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="submit"],
+    .branch-btn,
+    .equipment-btn {
+        font-size: 1rem;
+        padding: 12px 20px;
+    }
+
+    .logout-btn {
+        position: static; /* Make it flow naturally */
+        margin-bottom: 20px;
+        display: block;
+        width: fit-content;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .branch-buttons,
+    .equipment-buttons {
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .back-btn {
+        margin-top: 20px;
+        padding: 8px 15px;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .card-container {
+        padding: 25px 15px;
+        margin: 10px;
+        border-radius: var(--border-radius-md);
+    }
+
+    .head-office-title,
+    .maadi-branch-title {
+        font-size: 2rem;
+        top: 10px;
+    }
+
+    .sign-in-heading {
+        font-size: 1.5rem;
+        margin-bottom: 20px;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="submit"],
+    .branch-btn,
+    .equipment-btn {
+        font-size: 0.95rem;
+        padding: 10px 15px;
+        border-radius: var(--border-radius-sm);
+    }
+
+    .logout-btn {
+        font-size: 0.85rem;
+        padding: 8px 12px;
+        margin-bottom: 15px;
+    }
+
+    .back-btn {
+        font-size: 0.8rem;
+        padding: 7px 12px;
+        margin-top: 15px;
+    }
+}
+
+/* Specific adjustment for elements within forms */
+form input[type="submit"] {
+    /* Ensure the submit button always gets its specific styling */
+    margin-top: 25px; /* More space above the submit button in forms */
+}
+

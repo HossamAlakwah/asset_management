@@ -1,0 +1,70 @@
+{% load static %}
+{% load custom_filters %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dynamic Report Generator</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="container">
+        <h1>Dynamic Report Generator</h1>
+
+        <form method="get" id="report-form">
+            <label>Select Table:</label>
+            <select name="model" onchange="document.getElementById('report-form').submit()">
+                <option value="">-- Choose --</option>
+                {% for model in report_models %}
+                    <option value="{{ model.id }}" {% if model == selected_model %}selected{% endif %}>
+                        {{ model.name }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            {% if selected_model %}
+                <h3>Filters</h3>
+                {% for field in fields %}
+                    {% if field.is_filter %}
+                        <label>{{ field.display_name }}</label>
+                        {% if field.field_type == 'choice' and field.choices %}
+                            <select name="{{ field.field_name }}">
+                                <option value="">-- All --</option>
+                                {% for choice in field.choices %}
+                                    <option value="{{ choice }}" {% if filters|get_item:field.field_name == choice %}selected{% endif %}>
+                                        {{ choice }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        {% else %}
+                            <input type="text" name="{{ field.field_name }}" value="{{ filters|get_item:field.field_name }}">
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+                <button type="submit">Generate Report</button>
+            {% endif %}
+        </form>
+
+        {% if data %}
+            <h3>Results</h3>
+            <table>
+                <thead>
+                    <tr>
+                        {% for field in fields %}
+                            <th>{{ field.display_name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in data %}
+                        <tr>
+                            {% for field in fields %}
+                                <td>{{ row|get_item:field.field_name }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </div>
+</body>
+</html>

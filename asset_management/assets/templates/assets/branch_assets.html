@@ -1,0 +1,286 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Asset Management Dashboard</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.0.0-alpha.12/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Update the title dynamically based on the branch slug
+        const currentBranchSlug = "{{ current_branch_slug|default:'N/A' }}"; // Get slug from Django context
+        const titleElement = document.querySelector('.title');
+        if (titleElement && currentBranchSlug !== 'N/A') {
+            titleElement.textContent = currentBranchSlug.replace(/-/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') + " Assets";
+            document.title = titleElement.textContent; // Update browser tab title
+        } else if (titleElement) {
+             titleElement.textContent = "Head Office Assets"; // Default if slug is not available
+        }
+    });
+
+    function applyFilters() {
+        const searchQuery = document.getElementById("searchInput").value.toLowerCase();
+        const typeFilterDropdownValue = document.getElementById("typeFilter").value;
+
+        const selectedStatusBox = document.querySelector('.stat-card.selected');
+        const typeFilterCardValue = selectedStatusBox ? selectedStatusBox.getAttribute('data-status') : 'All';
+
+        const rows = document.querySelectorAll('#assetTable tbody tr');
+
+        rows.forEach(row => {
+            const employeeName = row.cells[0].textContent.toLowerCase();
+            const serialNumber = row.cells[1].textContent.toLowerCase();
+            const assetType = row.getAttribute('data-type'); // This is the asset's actual type (Laptop, Desktop)
+
+            const matchesSearch = employeeName.includes(searchQuery) || serialNumber.includes(searchQuery);
+
+            // Determine the effective type filter
+            let matchesType = true;
+            if (typeFilterCardValue !== 'All') {
+                matchesType = (assetType === typeFilterCardValue);
+            } else if (typeFilterDropdownValue !== 'All') {
+                matchesType = (assetType === typeFilterDropdownValue);
+            }
+
+            // Display the row only if it matches both the search query AND the combined type filter
+            if (matchesSearch && matchesType) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    function filterByStatus(card) {
+        const isSelected = card.classList.contains('selected');
+        document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('selected'));
+
+        if (!isSelected) {
+            card.classList.add('selected');
+            localStorage.setItem("selectedStatus", card.getAttribute('data-status'));
+        } else {
+            localStorage.removeItem("selectedStatus");
+        }
+        applyFilters();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Restore filter on page load
+        const selectedStatus = localStorage.getItem("selectedStatus");
+        if (selectedStatus) {
+            const card = document.querySelector(`.stat-card[data-status="${selectedStatus}"]`);
+            if (card) {
+                card.classList.add('selected');
+            }
+        }
+        applyFilters();
+
+        // Modal handlers
+        const modals = document.querySelectorAll('.modal');
+        const closeButtons = document.querySelectorAll('.close');
+
+        closeButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.closest('.modal').style.display = 'none';
+            });
+        });
+
+        window.onclick = function(event) {
+            modals.forEach(modal => {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        };
+
+        window.showModal = function(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+        };
+    });
+</script>
+
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Head Office</h1>
+            <a href="{% url 'view_branch' slug=current_branch_slug%}" class="header-back-btn">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+
+        {# Display Django Messages (success, error, warning) #}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for message in messages %}
+                    <div class="flash-message {{ message.tags }}">
+                        <i class="fas 
+                            {% if message.tags == 'success' %}fa-check-circle
+                            {% elif message.tags == 'error' %}fa-exclamation-circle
+                            {% else %}fa-exclamation-triangle
+                            {% endif %}"></i>
+                        {{ message }}
+                            <button type="button" style="background-color: transparent; border: none; width: 20px;margin-left: auto;" onclick="this.parentElement.remove()">
+                            <i class="fas fa-times"></i>
+                        </button>  
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="dashboard-stats">
+            <div class="stat-card" data-status="All" onclick="filterByStatus(this)">
+                <div class="stat-number">{{ all }}</div>
+                <div class="stat-label">ALL ASSETS</div>
+            </div>
+            <div class="stat-card" data-status="Laptop" onclick="filterByStatus(this)">
+                <div class="stat-number">{{ laptops_total }}</div>
+                <div class="stat-label">LAPTOPS</div>
+            </div>
+            <div class="stat-card" data-status="Desktop" onclick="filterByStatus(this)">
+                <div class="stat-number">{{ PCs_total }}</div>
+                <div class="stat-label">DESKTOP PCs</div>
+            </div>
+        </div>
+
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Search by employee name or serial number" onkeyup="applyFilters()" />
+            <select id="typeFilter" onchange="applyFilters()">
+                <option value="All">All Types</option>
+                {% for type_option in unique_asset_types %}
+                    <option value="{{ type_option }}">{{ type_option }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="controls">
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="showModal('uploadModal')">
+                    <i class="fas fa-file-upload"></i> Upload Excel
+                </button>
+                <button class="btn btn-success" onclick="showModal('extractModal')">
+                    <i class="fas fa-file-export"></i> Extract Data
+                </button>
+                <a href="{% url 'all_assets_log' slug=current_branch_slug %}" class="btn btn-danger" title="logs" style="color: white; text-decoration: none;">
+            <i class="fas fa-history"></i> View Logs
+        </a>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="assetTable">
+                <thead>
+                    <tr>
+                        <th>Employee Name</th>
+                        <th>Asset ID</th>
+                        <th>Asset Type</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for asset in assets %}
+                    <tr data-type="{{ asset.type|default:'' }}" data-status="{{ asset.status|default:'' }}">
+                        <td>{{ asset.employee_name|default:"-" }}</td>
+                        <td>{{ asset.serial|default:"-" }}</td>
+                        <td>{{ asset.type|default:"-" }}</td>
+                        <td>
+                            <span class="status-badge status-{{ asset.status|lower|cut:' ' }}">
+                                {{ asset.status|default:"-" }}
+                            </span>
+                        </td>
+                        <td class="action-icons">
+                            <a href="{% url 'asset_details' asset.id %}" title="View">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{% url 'edit_asset' asset.id %}" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Upload Excel File</h2>
+            <form method="post" action="{% url 'upload_assets_bulk' slug=current_branch_slug %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="file" name="excel_file" required accept=".xls,.xlsx" />
+                <br /><br />
+                <button type="submit">Upload</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Extract Modal -->
+    <div id="extractModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Extract Data</h2>
+            <form method="post" action="{% url 'extract_assets_bulk' slug=current_branch_slug %}">
+                {% csrf_token %}
+                <p>Filter by Status:</p>
+                <select name="status">
+                    <option value="All">All Statuses</option>
+                    {% for status_choice, status_label in ASSET_STATUS_CHOICES %}
+                        <option value="{{ status_choice }}">{{ status_label }}</option>
+                    {% endfor %}
+                </select>
+                <p>Select Format:</p>
+                <select name="format">
+                    <option value="excel">Excel (.xlsx)</option>
+                    <option value="html">HTML</option>
+                </select>
+                <br /><br />
+                <button type="submit">Extract</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Logs Modal -->
+    <div id="logsModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Action Logs</h2>
+            <div style="max-height:300px; overflow-y:auto; font-family: monospace; padding: 15px; background: #f9f9f9; border-radius: 8px;">
+                {% if logs %}
+                    {% for log in logs %}
+                        <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; gap: 15px;">
+                            <span style="color: #4361ee; font-weight: 500;">{{ log.timestamp }}</span>
+                            <span style="flex: 1;">{{ log.action }}</span>
+                            <span style="color: #f72585;">by {{ log.user }}</span>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div style="text-align: center; padding: 20px; color: #6c757d;">
+                        <i class="fas fa-inbox" style="font-size: 3rem; margin-bottom: 15px; color: #ddd;"></i>
+                        <p>No logs available</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    // Automatically remove each flash message after 5 seconds
+    document.querySelectorAll(".flash-message").forEach(function(message) {
+        setTimeout(function () {
+            message.remove();
+        }, 5000);  
+    });
+});
+</script>
+</html>

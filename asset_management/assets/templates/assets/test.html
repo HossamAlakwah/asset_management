@@ -1,0 +1,313 @@
+<!-- templates/laptop_acknowledgment.html -->
+ {% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>إقرار استلام جهاز حاسب آلي محمول</title>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+        @page {
+        size: A4;
+        margin: 10mm 10mm 10mm 10mm; /* Reduced from 15mm */
+        }
+
+        body {
+        font-family: 'Tajawal', sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #fff;
+        color: #000;
+        line-height: 1.6;
+        /* width: 210mm; */
+        /* min-height: 297mm; */
+        }
+
+    .container {
+      /* width: 190mm; */
+      margin: 0 auto;
+      padding: 5mm;
+      background-color: #fff;
+      /* height: 275mm;  */
+      /* overflow: hidden; */
+    }
+    .logo {
+      float: right;
+      margin-left: 10mm;
+      margin-bottom: 5mm;
+    }
+
+    .logo img {
+      height: 25mm;
+      width: auto;
+      max-width: 60mm;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 10mm;
+      clear: both;
+    }
+
+    .title {
+      font-size: 18pt;
+      font-weight: bold;
+      text-decoration: underline;
+      margin: 5mm 0;
+    }
+
+    .section {
+    margin-bottom: 5mm; /* Reduced from 8mm */
+    }
+
+    .section-title {
+      font-size: 14pt;
+      font-weight: 600;
+      border-bottom: 1px solid #000;
+      padding-bottom: 2mm;
+      margin-bottom: 5mm;
+    }
+
+    .text-line {
+      /* display: flex; */
+      margin-bottom: 5mm;
+      /* align-items: baseline; */
+    }
+
+    .text-line label {
+      min-width: 40mm;
+      font-weight: 600;
+    }
+
+    .text-line span {
+      flex-grow: 1;
+      border-bottom: 1px dashed #000;
+      min-height: 6mm;
+      margin-right: 5mm;
+      padding-bottom: 1mm;
+    }
+
+    .specs-list {
+      list-style: none;
+      padding: 0;
+      margin: 5mm 0;
+    }
+
+    .specs-list li {
+      margin-bottom: 3mm;
+      padding-right: 8mm;
+      position: relative;
+    }
+
+    .specs-list li:before {
+      position: absolute;
+      right: 0;
+      color: #000;
+      font-weight: bold;
+    }
+
+    .acknowledgment-text {
+      border: 1px solid #000;
+      padding: 5mm;
+      background: #fff;
+      font-size: 10pt;
+      text-align: justify;
+      line-height: 1.8;
+      margin: 5mm 0;
+    }
+
+    .signature-section {
+      /* display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2mm;
+      margin-top: 2mm;
+      grid-row: auto; */
+      margin-top: 3mm;
+    }
+
+    .signature-line {
+      display: flex;
+      margin-bottom: 4mm;
+    }
+
+    .signature-line label {
+      min-width: 10mm;
+      font-weight: 200;
+    }
+
+    .text-right {
+      text-align: right;
+      margin: 5mm 0;
+    }
+
+    @media print {
+      body {
+        width: 210mm;
+        height: auto;
+        margin: 0;
+        padding: 0;
+      }
+      
+      .container {
+        width: 190mm;
+        margin: 0 auto;
+        box-shadow: none;
+        margin: 0;
+        padding: 0;
+      }
+      
+      .no-print {
+        display: none;
+      }
+      
+      .section, .signature-section {
+        page-break-inside: avoid;
+      }
+      * {
+  box-sizing: border-box;
+}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <img src="{% static 'MLIT.png' %}" alt="شعار الشركة">
+    </div>
+
+    <div class="header">
+      <h1 class="title">إقرار استلام جهاز حاسب آلي محمول</h1>
+    </div>
+
+    <div class="section">
+<div class="text-line" style="display: flex; justify-content: space-between; direction: rtl; margin: 10px 0;">
+  <div style="text-decoration: none;">استلمت أنا / <label id="employeeName"></label></div>
+  <div style="text-decoration: none;">التاريخ: <label id="signatureDate"></label></div>
+</div>
+
+
+
+      <div class="text-line">
+        <label>من إدارة تكنولوجيا المعلومات التابعة لشركة مصر للتأمين التكافلي - حياة</label>
+      </div>
+    </div>
+
+    <div class="section" dir="ltr">
+      <div class="section-title">Laptop with following specification:</div>
+      <ul class="specs-list">
+        <li id="productSpec"></li>
+        <li id="serialNumberSpec"></li>
+{% if additional_items %}
+<div class="additional-items-section">
+    <h3>Additional Items:</h3>
+    <ul>
+        {% for item in additional_items %}
+        <li>{{ item }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}      </ul>
+
+      <div class="text-line" dir="rtl">
+        <label>الغرض من الاستلام: <label id="purpose"></label></label>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="acknowledgment-text">
+        أقر بأن هذا الجهاز (حاسب آلي محمول) قد تم تسليمه لي كعُهدة على سبيل الأمانة، وفي حالة إنهاء/انتهاء العقد أكون ملتزماً بتسليم هذه العُهدة، وإلا أكون خائناً للأمانة وأتحمل المسؤولية المدنية والجنائية المترتبة على ذلك.
+      </div>
+    </div>
+
+    <div class="text-right">
+      <p>وهذا إقرار مني بذلك ...</p>
+    </div>
+
+      <div class="signature-section">
+        <div class="signature-line" style="display: flex; gap: 10rem; ">
+          <label>الاسم: <span id="signatureName"></span></label>
+          <label>الرقم القومي: <span id="nationalId"></span></label>
+        </div>
+      </div>
+      <div class="signature-line">
+        <label>التاريخ: <label id="signatureDate"></label></label>
+      </div>
+      <div class="signature-line">
+        <label>التوقيع:</label>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Get parameters from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const employeeName = urlParams.get('employeeName') || 'document';
+    const dateParam = urlParams.get('date') || new Date().toISOString().split('T')[0];
+    
+    // Set values from parameters
+    document.getElementById('employeeName').textContent = employeeName;
+    document.getElementById('signatureName').textContent = employeeName;
+    document.getElementById('productSpec').textContent = urlParams.get('product') || '';
+    document.getElementById('serialNumberSpec').textContent = 'Serial Number: ' + (urlParams.get('serialNumber') || '');
+    document.getElementById('additionalItemsSpec').textContent = 'Additional items: ' + (urlParams.get('additionalItems') || '');
+    document.getElementById('purpose').textContent = urlParams.get('purpose') || 'موظف جديد';
+    
+    // Format date
+    const date = new Date(dateParam);
+    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+    document.getElementById('signatureDate').textContent = date.toLocaleDateString('ar-EG', options);
+
+    // Function to generate and save PDF
+    function generatePDF() {
+      const element = document.documentElement;
+      const opt = {
+        margin: 10,
+        filename: `إقرار_استلام_${employeeName}_${dateParam}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          allowTaint: true
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait',
+          hotfixes: ["px_scaling"]
+        }
+      };
+
+      // Generate PDF after a small delay to ensure rendering is complete
+      setTimeout(() => {
+        html2pdf().set(opt).from(element).save().then(() => {
+          // Close window after PDF is saved
+          setTimeout(() => window.close(), 1000);
+        });
+      }, 500);
+    }
+
+    // Automatically print and save PDF
+    window.onload = function() {
+      // First trigger the print dialog
+      setTimeout(() => {
+        window.print();
+        
+        // Then generate PDF after print dialog is shown
+        setTimeout(generatePDF, 100);
+      }, 500);
+    };
+
+    // Fallback in case print is cancelled
+    window.onafterprint = function() {
+      // Small delay to ensure print dialog is really closed
+      setTimeout(() => {
+        if (!document.hasFocus()) {
+          // User might have cancelled, close the window
+          setTimeout(() => window.close(), 1000);
+        }
+      }, 500);
+    };
+  </script>
+</body>
+</html>

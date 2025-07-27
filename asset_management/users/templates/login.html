@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-11 col-la-15 col-md-6 col-lg-5 col-xl-4" style="width: 7000px;">
+        <div class="card shadow-sm border-0 rounded-4">
+            <div class="card-header bg-white border-0 text-center py-4">
+                <h3 class="fw-bold mb-0">Login</h3>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" novalidate>
+                    {% csrf_token %}
+                    <div class="form-floating mb-4">
+                        <input 
+                            type="text" 
+                            class="form-control rounded-3" 
+                            id="username" 
+                            name="username" 
+                            placeholder="Username" 
+                            required
+                            autofocus
+                        >
+                        <label for="username">
+                            <svg xmlns="http://www.w3.org/2000/svg" 
+                                width="16" height="16" fill="currentColor" 
+                                class="bi bi-person me-1" viewBox="0 0 16 16">
+                                <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                                <path fill-rule="evenodd" d="M8 9a5 5 0 0 0-4.546 2.916.5.5 0 0 0 .832.555A4 4 0 0 1 8 10a4 4 0 0 1 3.714 2.471.5.5 0 1 0 .832-.555A5 5 0 0 0 8 9z"/>
+                            </svg>
+                            Username
+                        </label>
+                    </div>
+                    <div class="form-floating mb-4">
+                        <input 
+                            type="password" 
+                            class="form-control rounded-3" 
+                            id="password" 
+                            name="password" 
+                            placeholder="Password" 
+                            required
+                        >
+                        <label for="password">
+                            <svg xmlns="http://www.w3.org/2000/svg" 
+                                width="16" height="16" fill="currentColor" 
+                                class="bi bi-lock me-1" viewBox="0 0 16 16">
+                                <path d="M8 1a3 3 0 0 0-3 3v3h6V4a3 3 0 0 0-3-3zM5 4a3 3 0 0 1 6 0v3H5V4z"/>
+                                <path d="M4 8a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2H4z"/>
+                            </svg>
+                            Password
+                        </label>
+                    </div>
+
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <button type="submit" class="btn btn-primary btn-lg px-4 rounded-3 shadow-sm">
+                            Login
+                        </button>
+                        <a href="{% url 'password_reset' %}" class="text-decoration-none link-primary small fw-semibold">
+                            Forgot Password?
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Ensure form-floating icons are aligned */
+    .form-floating > label {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-weight: 500;
+        color: #495057;
+        user-select: none;
+    }
+    /* Input icon colors and transitions */
+    .form-control:focus ~ label,
+    .form-control:not(:placeholder-shown) ~ label {
+        color: #0d6efd;
+    }
+    /* Increase inner padding of form controls to accommodate label icon */
+    .form-control {
+        padding-left: 3rem;
+        padding-right: 1rem;
+    }
+    /* SVG icon inside label: position to left - using padding left on input to match */
+    .form-floating > label svg {
+        min-width: 1.2rem;
+        min-height: 1.2rem;
+        fill: currentColor;
+    }
+
+    /* Responsive vertical spacing */
+    @media (max-width: 720px) {
+        .card {
+            margin-top: 2.5rem !important;
+        }
+        .btn {
+            width: 100%;
+        }
+        .d-flex.justify-content-between {
+            flex-direction: column;
+            gap: 0.75rem;
+            align-items: stretch;
+        }
+    }
+</style>
+{% endblock %}

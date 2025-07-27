@@ -1,0 +1,165 @@
+# upload_data.py
+
+import pandas as pd
+from django.contrib import messages
+from django.db import transaction
+
+from .models import Asset, Branch, Employee, StorageDevice
+
+'''
+
+upload bulk employees 
+
+'''
+def upload_bulk_employee(request, excel_file, user):
+    # Basic file type validation
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+
+        expected_columns = ['Name', 'Department', 'Title', 'Email']
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns in Excel: {', '.join(missing)}.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    name = str(row['Name']).strip()
+                    department = str(row['Department']).strip()
+                    title = str(row['Title']).strip()
+                    email = str(row['Email']).strip().lower()
+
+                    # Skip if email already exists
+                    if Employee.objects.filter(email=email).exists():
+                        skipped += 1
+                        continue
+
+                    Employee.objects.create(
+                        name=name,
+                        department=department,
+                        title=title,
+                        email=email,
+                        created_by=user
+                    )
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error processing '{row.get('Email', 'N/A')}' – {e}")
+
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Import completed with {len(errors)} error(s), {imported} new employees added, {skipped} skipped.")
+        else:
+            messages.success(request, f"{imported} employees successfully imported. {skipped} duplicate emails skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "The uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error: {e}")
+        return False
+
+'''
+
+Assets upload
+
+'''
+
+def upload_bulk_asset(request, excel_file, branch, slug, user):
+    # === 1. Validate file type ===
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+
+        expected_columns = [
+            'Product', 'Serial', 'Type', 'CPU', 'CPU Generation', 'RAM',
+            'Warranty', 'Comments',
+            'Storage 1 Type', 'Storage 1 Size',
+            'Storage 2 Type', 'Storage 2 Size'
+        ]
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing columns: {', '.join(missing)}")
+            return False
+
+        try:
+            branch = Branch.objects.get(slug='stock')
+        except Branch.DoesNotExist:
+            messages.error(request, "Branch with slug='stock' not found.")
+            return False
+
+        imported_count = 0
+        skipped_count = 0
+        errors = []
+
+        with transaction.atomic():
+            for index, row in df.iterrows():
+                try:
+                    serial = str(row['Serial']).strip()
+
+                    if Asset.objects.filter(serial=serial).exists():
+                        skipped_count += 1
+                        continue
+
+                    asset = Asset(
+                        product=str(row['Product']).strip(),
+                        serial=serial,
+                        type=str(row['Type']).strip(),
+                        cpu=str(row['CPU']).strip() if pd.notna(row['CPU']) else None,
+                        cpu_generation=str(row['CPU Generation']).strip() if pd.notna(row['CPU Generation']) else None,
+                        ram=str(row['RAM']).strip() if pd.notna(row['RAM']) else None,
+                        warranty=pd.to_datetime(row['Warranty']).date() if pd.notna(row['Warranty']) else None,
+                        comments=str(row['Comments']).strip() if pd.notna(row['Comments']) else None,
+                        status='Stock',
+                        branch=branch,
+                        created_by=user,
+                    )
+                    asset._changed_by = user
+                    asset.save()
+
+                    # === Add up to two storage devices ===
+                    for n in [1, 2]:
+                        storage_type = str(row.get(f'Storage {n} Type')).strip() if pd.notna(row.get(f'Storage {n} Type')) else None
+                        storage_size = str(row.get(f'Storage {n} Size')).strip() if pd.notna(row.get(f'Storage {n} Size')) else None
+                        if storage_type and storage_size:
+                            StorageDevice.objects.create(
+                                asset=asset,
+                                type=storage_type,
+                                size=storage_size
+                            )
+
+                    imported_count += 1
+
+                except Exception as e:
+                    errors.append(f"Row {index + 2}: Error for Serial '{row.get('Serial', 'N/A')}': {e}")
+
+        # === Final messages ===
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Uploaded with {len(errors)} error(s), {imported_count} assets added, {skipped_count} skipped.")
+        else:
+            messages.success(request, f"Successfully uploaded {imported_count} assets. {skipped_count} skipped (duplicates).")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during upload: {e}")
+
+    return False

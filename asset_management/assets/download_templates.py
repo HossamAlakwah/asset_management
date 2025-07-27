@@ -1,0 +1,55 @@
+from io import BytesIO
+
+import openpyxl
+from django.http import HttpResponse
+from openpyxl.styles import PatternFill
+from openpyxl.worksheet.datavalidation import DataValidation
+
+from .models import Asset, StorageDevice
+
+
+def generate_asset_template():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Assets Upload"
+
+    # Define headers
+    headers = [
+        'Product', 'Serial', 'Type', 'CPU', 'CPU Generation', 'RAM',
+        'Warranty', 'Comments',
+        'Storage 1 Type', 'Storage 1 Size',
+        'Storage 2 Type', 'Storage 2 Size'
+    ]
+    ws.append(headers)
+
+    # Highlight mandatory fields
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col in ['A', 'B', 'C']:  # Product, Serial, Type
+        ws[f"{col}1"].fill = red_fill
+
+    # Define drop-downs (choices from model)
+    def add_dropdown(col_letter, choices):
+        dv = DataValidation(type="list", formula1=f'"{",".join(choices)}"', allow_blank=True)
+        ws.add_data_validation(dv)
+        dv.add(f"{col_letter}2:{col_letter}100")
+
+    add_dropdown("C", [c[0] for c in Asset.ASSET_TYPE_CHOICES])     # Type
+    add_dropdown("D", [c[0] for c in Asset.CPU_CHOICES])            # CPU
+    add_dropdown("E", [c[0] for c in Asset.CPU_GEN_CHOICES])        # CPU Gen
+    add_dropdown("F", [c[0] for c in Asset.RAM_CHOICES])            # RAM
+    add_dropdown("I", [c[0] for c in StorageDevice.STORAGE_TYPE_CHOICES])  # Storage 1 Type
+    add_dropdown("J", [c[0] for c in StorageDevice.STORAGE_SIZE_CHOICES])  # Storage 1 Size
+    add_dropdown("K", [c[0] for c in StorageDevice.STORAGE_TYPE_CHOICES])  # Storage 2 Type
+    add_dropdown("L", [c[0] for c in StorageDevice.STORAGE_SIZE_CHOICES])  # Storage 2 Size
+
+    # Return file as HTTP response
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=asset_template.xlsx'
+    return response
