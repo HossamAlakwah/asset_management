@@ -28,17 +28,22 @@ urlpatterns = [
     path('assets/add/', views.add_asset, name='add_asset'),
     path('assets/template/download/', views.download_asset_template, name='download_asset_template'),
     path('assets/unassign/<int:asset_id>/<int:employee_id>/', views.unassign_asset, name='unassign_asset'),
-
     path('assets/laptop-acknowledgment/', views.laptop_acknowledgment, name='laptop_acknowledgment'),
     
-    # # Screen-related
-    # path('screens/', views.all_screens, name='all_screens'),
-    # path('branches/<slug:slug>/screens/', views.branch_screens, name='branch_screens'),
-    # path('screens/<int:screen_id>/', views.screen_details, name='screen_details'),
-    # path('screens/<int:screen_id>/edit/', views.edit_screen, name='edit_screen'),
-    # path('logs/screens/<slug:slug>/', views.all_screens_log, name='all_screens_log'),
-    # path('branches/<slug:slug>/upload-screens/', views.upload_screens, name='upload_screens_bulk'),
-    # path('branches/<slug:slug>/extract-screens/', views.extract_screens_data, name='extract_screens_bulk'),
+    # Screen-related
+    path('screens/', views.all_screens, name='all_screens'),
+    path('screens/add/', views.create_screen, name='create_screen'),
+    path('screens/<int:screen_id>/', views.screen_details, name='screen_details'),
+    path('screens/<int:screen_id>/edit/', views.edit_screen, name='edit_screen'),
+    path('screens/unassign/<int:screen_id>/<int:employee_id>/', views.unassign_screen, name='unassign_screen'),
+
+    path('branches/<slug:slug>/screens/', views.branch_screens, name='branch_screens'),
+    path('logs/screens/<slug:slug>/', views.all_screen_log, name='all_screen_log'),
+
+    path('branches/<slug:slug>/upload-screens/', views.upload_screens, name='upload_screens'),
+    path('branches/<slug:slug>/extract-screens/', views.extract_screens_data, name='extract_screens_bulk'),
+    path('screens/template/download/', views.download_screens_template, name='download_screens_template'),
+
     
     # # Telecom-Access Related
     # path('telecom-access/', views.all_telecom_access, name='all_telecom_access'),

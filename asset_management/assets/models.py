@@ -81,7 +81,7 @@ class Asset(models.Model):
     ]
     
     ASSET_TYPE_CHOICES = [
-        ('Laptop', 'Laptop'),
+                           ('Laptop', 'Laptop'),
         ('Desktop', 'Desktop'),
     ]
     
@@ -249,52 +249,79 @@ screens, printers, and screen-PCs will be stored in this table.
 log will be created for each screen change.
 
 '''
-# class Screen(models.Model):
-#     PRODUCT_CHOICES = [
-#         ('Screen', 'Screen'),
-#         ('Screen-PC', 'Screen-PC'),
-#         ('Printer', 'Printer'),
-#     ]
+class Screen(models.Model):
+    PRODUCT_CHOICES = [
+        ('Screen', 'Screen'),
+        ('Screen-PC', 'Screen-PC'),
+    ]
 
-#     STATUS_CHOICES = [
-#         ('In Use', 'In Use'),
-#         ('Damage', 'Damage'),
-#         ('Stock', 'Stock'),
-#     ]
+    STATUS_CHOICES = [
+        ('In Use', 'In Use'),
+        ('Damage', 'Damage'),
+        ('Stock', 'Stock'),
+    ]
 
-#     product = models.CharField(max_length=50, choices=PRODUCT_CHOICES)
-#     serial = models.CharField(max_length=100, unique=True)
-#     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
-#     employee_name = models.CharField(max_length=255, blank=True, null=True)
-#     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
-#     created_at = models.DateTimeField(auto_now_add=True)
-#     updated_at = models.DateTimeField(auto_now=True)
-#     created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='created_screens')
-#     class Meta:
-#         ordering = ['-created_at']
-#         verbose_name = 'Screen'
-#         verbose_name_plural = 'Screens'
+    product = models.CharField(max_length=50, choices=PRODUCT_CHOICES,blank=False, null=False)
+    serial = models.CharField(max_length=100, unique=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    brand= models.CharField(max_length=50, blank=False, null=False)
+    employee = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=False)
 
-#     def __str__(self):
-#         return f"{self.product} - {self.serial}"
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-# class ScreenLog(models.Model):
-#     screen = models.ForeignKey(Screen, on_delete=models.CASCADE, related_name='logs')
-#     changed_by = models.CharField(max_length=255)
-#     old_status = models.CharField(max_length=20, blank=True, null=True)
-#     new_status = models.CharField(max_length=20)
-#     old_employee_name = models.CharField(max_length=255, blank=True, null=True)
-#     new_employee_name = models.CharField(max_length=255, blank=True, null=True)
-#     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
-#     change_time = models.DateTimeField(default=timezone.now)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=False, related_name='created_screens')
 
-#     class Meta:
-#         ordering = ['-change_time']
-#         verbose_name = 'Screen Log'
-#         verbose_name_plural = 'Screen Logs'
 
-#     def __str__(self):
-#         return f"Change log for {self.screen.serial} at {self.change_time}"
+    def save(self, *args, **kwargs):
+        if self.employee and self.employee.branch:
+            self.branch = self.employee.branch
+        super().save(*args, **kwargs)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Screen'
+        verbose_name_plural = 'Screens'
+
+    def __str__(self):
+        return f"{self.product} - {self.serial}"
+
+
+class ScreenLog(models.Model):
+    screen = models.ForeignKey(Screen, on_delete=models.CASCADE, related_name='logs')
+
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=False)
+
+    old_status = models.CharField(max_length=20, blank=True, null=True)
+    new_status = models.CharField(max_length=20)
+
+    old_employee = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='screen_old_employee_logs'
+    )
+    new_employee = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='screen_new_employee_logs'
+    )
+
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
+    change_time = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-change_time']
+        verbose_name = 'Screen Log'
+        verbose_name_plural = 'Screen Logs'
+
+    def __str__(self):
+        return f"Log for {self.screen.serial} at {self.change_time.strftime('%Y-%m-%d %H:%M')}"
+
 
 
 

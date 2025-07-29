@@ -1,6 +1,7 @@
 import io
 from datetime import date
 from itertools import count
+from turtle import Screen
 from urllib.parse import unquote, urlparse
 
 import pandas as pd
@@ -13,14 +14,14 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q, Sum
 from django.forms import inlineformset_factory
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .download_templates import generate_asset_template
-from .extract_date import generate_assets_report
+from .download_templates import generate_asset_template, generate_screen_template
+from .extract_date import generate_assets_report, generate_screens_report
 from .models import (
     Asset,
     AssetLog,
@@ -28,9 +29,11 @@ from .models import (
     Employee,
     ReportableField,
     ReportableModel,
+    Screen,
+    ScreenLog,
     StorageDevice,
 )
-from .upload_data import upload_bulk_asset, upload_bulk_employee
+from .upload_data import upload_bulk_asset, upload_bulk_employee, upload_bulk_screens
 
 
 def logout_view(request):
@@ -164,6 +167,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 def edit_employee(request, employee_id):
     employee = get_object_or_404(Employee, id=employee_id)
     assets = Asset.objects.filter(status='Stock').exclude(employee_name__isnull=False)
+    screens = Screen.objects.filter(status='Stock').exclude(employee__isnull=False)
     branches = Branch.objects.filter(choosable=True)
 
     if request.method == 'POST':
@@ -172,10 +176,9 @@ def edit_employee(request, employee_id):
         title = request.POST.get('title')
         email = request.POST.get('email')
         branch_id = request.POST.get('branch')
-        assigned_asset_id = request.POST.get('assigned_asset')  # From modal
-        print("Assigned Asset ID:", assigned_asset_id)
+        assigned_asset_id = request.POST.get('assigned_asset')
+        assigned_screen_id = request.POST.get('assigned_screen')  # New
 
-        # Basic validation
         if not all([name, department, title, email]):
             messages.error(request, "All fields are required.")
             return redirect('edit_employee', employee_id=employee.id)
@@ -189,6 +192,7 @@ def edit_employee(request, employee_id):
                 employee.branch = Branch.objects.filter(id=branch_id).first()
                 employee.save()
 
+                # Assign Asset if selected
                 if assigned_asset_id:
                     already_assigned = employee.asset_set.filter(id=assigned_asset_id).exists()
                     if not already_assigned:
@@ -200,6 +204,15 @@ def edit_employee(request, employee_id):
                         asset._changed_by = request.user
                         asset.save()
 
+                # Assign Screen if selected
+                if assigned_screen_id:
+                    screen = Screen.objects.get(pk=assigned_screen_id)
+                    screen.employee = employee
+                    screen.status = 'In Use'
+                    screen.branch = employee.branch
+                    screen._changed_by = request.user
+                    screen.save()
+
                 messages.success(request, f"Employee '{employee.name}' updated successfully.")
                 return redirect('edit_employee', employee_id=employee.id)
 
@@ -209,8 +222,11 @@ def edit_employee(request, employee_id):
     return render(request, 'employees/edit_employee.html', {
         'employee': employee,
         'assets': assets,
+        'screens': screens,  
         'branches': branches,
+        # 'assigned_screens': assigned_screens,
     })
+
 
 
 
@@ -506,7 +522,7 @@ def edit_asset(request, asset_id):
     })
 
 
-from .forms import AssetForm, StorageDeviceFormSet
+from .forms import AssetForm, ScreenForm, StorageDeviceFormSet
 
 
 @login_required
@@ -590,11 +606,7 @@ def dynamic_report_view(request):
 
     return render(request, "reports/dynamic_report.html", context)
 
-# views.py
-from django.apps import apps
-from django.http import JsonResponse
 
-from .models import ReportableModel
 
 
 def get_model_fields(request):
@@ -618,3 +630,242 @@ def get_model_fields(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
 
+'''
+screens & PC-screens part
+'''
+
+'''
+Screens view
+This view displays all screens and their statuses
+'''
+@login_required
+def all_screens(request):
+    screens = Screen.objects.select_related('employee', 'branch')
+    print(screens)
+    all_count = screens.count()
+    screen_total = screens.filter(product='Screen').count()
+    screen_pc_total = screens.filter(product='Screen-PC').count()
+    unique_asset_types = list(
+        screens.order_by('status').values_list('status', flat=True).distinct()
+    )
+    print(unique_asset_types)
+    stock_count = screens.filter(status='Stock').count()
+    in_use_count = screens.filter(status='In Use').count()
+    damage_count = screens.filter(status='Damage').count()
+    
+    context = {
+        'branch': None,
+        'screens': screens,
+        'all': all_count,
+        'screen_total': screen_total,
+        'screen_pc_total': screen_pc_total,
+        "unique_asset_types": unique_asset_types,
+        "stock_count": stock_count,
+        "in_use_count": in_use_count,
+        "damage_count": damage_count,
+    }
+    return render(request, 'screens/screens_all.html', context)
+
+'''
+Create screen view
+This view allows users to create a new screen
+'''
+@login_required
+def create_screen(request):
+    if request.method == 'POST':
+        form = ScreenForm(request.POST)
+        if form.is_valid():
+            screen = form.save(commit=False)
+            screen.created_by = request.user
+            screen._changed_by = request.user  # ✅ for signal
+            screen.status = 'Stock'
+            screen.branch = Branch.objects.get(slug='stock')
+            screen.save()
+            messages.success(request, f"Screen {screen.serial} created successfully.")
+            return redirect('all_screens')
+        else:
+            messages.error(request, "Please correct the form errors.")
+    else:
+        form = ScreenForm()
+
+    return render(request, 'screens/screens_create.html', {
+        'form': form
+    })
+
+
+'''edit screen view
+This view allows users to edit an existing screen'''
+
+@login_required
+def edit_screen(request, screen_id):
+    screen = get_object_or_404(Screen, pk=screen_id)
+    employees = Employee.objects.all()
+    branches = Branch.objects.filter(choosable=True)
+
+    if request.method == 'POST':
+        product = request.POST.get('product')
+        serial = request.POST.get('serial')
+        brand = request.POST.get('brand')
+        status = request.POST.get('status')
+        employee_id = request.POST.get('employee')
+        branch_id = request.POST.get('branch')
+
+        employee = Employee.objects.get(pk=employee_id) if employee_id else None
+        branch = Branch.objects.get(pk=branch_id) if branch_id else None
+
+        # ✅ VALIDATION LOGIC
+        if status == 'In Use':
+            if not employee:
+                messages.error(request, "Employee is required when status is 'In Use'.")
+                return redirect('edit_screen', screen_id=screen.id)
+            if branch and branch.name.lower() == 'stock':
+                messages.error(request, "Branch must not be 'stock' when status is 'In Use'.")
+                return redirect('edit_screen', screen_id=screen.id)
+
+        elif status in ['Stock', 'Damage']:
+            if employee:
+                messages.error(request, "Employee must be empty when status is 'Stock' or 'Damage'.")
+                return redirect('edit_screen', screen_id=screen.id)
+            if not branch or branch.name.lower() != 'stock':
+                messages.error(request, "Branch must be 'stock' when status is 'Stock' or 'Damage'.")
+                return redirect('edit_screen', screen_id=screen.id)
+
+        # ✅ Save changes
+        screen.product = product
+        screen.serial = serial
+        screen.brand = brand
+        screen.status = status
+        screen.employee = employee if status == 'In Use' else None
+        screen.branch = employee.branch if employee and status == 'In Use' else branch
+        screen.updated_at = timezone.now()
+        screen._changed_by = request.user
+        screen.save()
+
+        messages.success(request, f"Screen {serial} updated.")
+        return redirect('edit_screen', screen_id=screen.id)
+
+    return render(request, 'screens/screens_edit.html', {
+        'screen': screen,
+        'employees': employees,
+        'branches': branches,
+        'screen_product_choices': Screen.PRODUCT_CHOICES,
+        'screen_status_choices': Screen.STATUS_CHOICES,
+    })
+
+
+
+''' unsign screen from employee
+This view allows users to unassign a screen from an employee and return it to stock.'''
+@require_POST
+@login_required
+def unassign_screen(request, screen_id, employee_id):
+    screen = get_object_or_404(Screen, id=screen_id, employee__id=employee_id)
+    stock_branch = Branch.objects.get(name__iexact='Stock')
+
+    screen.employee = None
+    screen.status = 'Stock'
+    screen.branch = stock_branch
+    screen.updated_at = timezone.now()
+    screen.save()
+
+    messages.success(request, f"Screen '{screen.serial}' unassigned successfully.")
+    return redirect('edit_employee', employee_id=employee_id)
+
+'''
+Screen logs view
+This view displays logs related to screen changes for a specific branch or all branches.
+'''
+@login_required
+def all_screen_log(request, slug):
+    if slug == 'All':
+        logs = ScreenLog.objects.all().order_by('-change_time')
+        branch = None
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        screen_ids = Screen.objects.filter(branch=branch).values_list('id', flat=True)
+        logs = ScreenLog.objects.filter(screen_id__in=screen_ids).order_by('-change_time')
+
+    return render(request, 'screens/screens_logs.html', {
+        'logs': logs,
+        'branch': branch,
+        'current_branch_slug': slug,
+    })
+'''
+branch screens view
+This view displays all screens for a specific branch, including their statuses and types.
+'''
+@login_required
+def branch_screens(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    screens = Screen.objects.filter(branch=branch)
+
+    total = screens.count()
+    screen_pcs = screens.filter(product='Screen-PC').count()
+    regular_screens = screens.filter(product='Screen').count()
+
+    return render(request, 'screens/branch_screens.html', {
+        'screens': screens,
+        'total': total,
+        'screen_pcs': screen_pcs,
+        'regular_screens': regular_screens,
+        'current_branch_slug': slug,
+    })
+
+'''
+Extract screens data
+This view allows users to extract screen data based on selected status and format.
+'''
+@login_required
+def extract_screens_data(request, slug):
+    branch = get_object_or_404(Branch, slug=slug) if slug != 'All' else 'All'
+    selected_status = request.POST.get('status')
+    selected_format = request.POST.get('format')
+    
+    return generate_screens_report(request, branch, selected_status, selected_format)
+
+@login_required
+def download_screens_template(request):
+    return generate_screen_template()
+
+@require_POST
+@login_required
+def upload_screens(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    if 'excel_file' not in request.FILES:
+        messages.error(request, "No file uploaded.")
+        return redirect('all_screens')
+
+    excel_file = request.FILES['excel_file']
+    success = upload_bulk_screens(request, excel_file, branch, slug, request.user)
+    if not success:
+        messages.error(request, "Request failed, please try again")
+        return redirect('all_screens')
+
+
+    return redirect('all_screens')
+
+
+def screen_details(request, screen_id):
+    screen = get_object_or_404(Screen, pk=screen_id)
+    print(screen)
+    return render(request, 'screens/screens_details.html', {'screen': screen})
+
+@require_POST
+@login_required
+def unassign_screen(request, screen_id, employee_id):
+    screen = get_object_or_404(Screen, id=screen_id, employee__id=employee_id)
+    stock_branch = Branch.objects.get(name__iexact='Stock')
+
+    try:
+        screen.employee = None
+        screen.status = 'Stock'
+        screen.branch = stock_branch
+        screen.return_date = timezone.now().date()
+        screen._changed_by = request.user
+        screen.save()
+
+        messages.success(request, f"Screen '{screen.serial}' unassigned successfully.")
+    except Exception as e:
+        messages.error(request, f"Error while unassigning screen: {e}")
+
+    return redirect('edit_employee', employee_id=employee_id)

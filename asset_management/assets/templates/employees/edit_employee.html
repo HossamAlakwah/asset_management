@@ -181,6 +181,15 @@
                 <input type="hidden" id="assigned_asset" name="assigned_asset">
                 <p id="selectedAssetDisplay" style="margin-top: 10px; color: #0df;">No asset selected.</p>
             </div>
+            <!-- Assign New Screen via Modal -->
+            <div class="form-group full-width">
+                <label>Assign New Screen:</label>
+                <button type="button" class="btn btn-primary" id="openScreenModal">
+                    <i class="fas fa-plus"></i> Assign Screen
+                </button>
+                <input type="hidden" id="assigned_screen" name="assigned_screen">
+                <p id="selectedScreenDisplay" style="margin-top: 10px; color: #0df;">No screen selected.</p>
+            </div>
 
             <button type="submit" class="save-button full-width">
                 <i class="fas fa-save"></i> Update Employee
@@ -189,7 +198,7 @@
 
         <!-- Assigned Assets Section -->
         <div class="form-group full-width" style="margin-top: 30px;">
-            <label class="section-label"><i class="fas fa-laptop-code"></i> Currently Assigned Assets</label>
+        <label class="section-label"><i class="fas fa-tv"></i> Currently Assigned Asset</label>
             {% if employee.asset_set.all %}
                 <div class="styled-asset-list">
                     {% for asset in employee.asset_set.all %}
@@ -220,6 +229,35 @@
                 </div>
             {% else %}
                 <p><em>No assets currently assigned.</em></p>
+            {% endif %}
+        </div>
+        <div class="form-group full-width" style="margin-top: 30px;">
+            <label class="section-label"><i class="fas fa-tv"></i> Currently Assigned Screens</label>
+            {% if employee.screen_set.exists %}
+                <div class="styled-asset-list">
+                    {% for screen in employee.screen_set.all %}
+                        <div class="styled-asset-card">
+                            <div class="asset-icon"><i class="fas fa-tv"></i></div>
+                            <div class="asset-content">
+                                <div class="asset-header">
+                                    <strong>{{ screen.serial }}</strong>
+                                    <span class="asset-type">({{ screen.product }})</span>
+                                </div>
+                                <div class="asset-subtext">{{ screen.brand }}</div>
+                            </div>
+                            <div class="asset-actions" style="display: flex; gap: 10px; margin-top: 8px;">
+                                <form method="POST" action="{% url 'unassign_screen' screen.id employee.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger btn-small">
+                                        <i class="fas fa-unlink"></i> Unassign
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p><em>No screens currently assigned.</em></p>
             {% endif %}
         </div>
     </div>
@@ -298,6 +336,42 @@
         </div>
     </div>
 </div>
+<!-- Screen Selection Modal -->
+<div class="modal" id="screenSelectModal">
+    <div class="modal-content-large">
+        <span class="close-modal">&times;</span>
+        <div style="padding: 20px;">
+            <h3>Select a Screen</h3>
+            <input type="text" id="screenSearchInput" placeholder="Search by serial..." style="width: 100%; padding: 8px; margin-bottom: 10px;">
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Serial</th>
+                        <th>Brand</th>
+                        <th>Size</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for screen in screens %}
+                    <tr>
+                        <td>{{ screen.serial }}</td>
+                        <td>{{ screen.brand }}</td>
+                        <td>{{ screen.size }}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-success assign-screen-btn"
+                                data-id="{{ screen.id }}" data-label="{{ screen.serial }}">
+                                Assign
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 </body>
 <script>
@@ -333,6 +407,40 @@
             row.style.display = serial.includes(filter) ? "" : "none";
         });
     });
+
+    // Screen Modal open/close
+document.getElementById("openScreenModal").onclick = function () {
+    document.getElementById("screenSelectModal").style.display = "block";
+    document.body.style.overflow = "hidden";
+};
+
+document.querySelector("#screenSelectModal .close-modal").onclick = function () {
+    document.getElementById("screenSelectModal").style.display = "none";
+    document.body.style.overflow = "auto";
+};
+
+// Assign screen click
+document.querySelectorAll(".assign-screen-btn").forEach(button => {
+    button.addEventListener("click", function () {
+        const screenId = this.dataset.id;
+        const screenLabel = this.dataset.label;
+        document.getElementById("assigned_screen").value = screenId;
+        document.getElementById("selectedScreenDisplay").textContent = `Selected Screen: ${screenLabel}`;
+        document.getElementById("screenSelectModal").style.display = "none";
+        document.body.style.overflow = "auto";
+    });
+});
+
+// Filter/search
+document.getElementById("screenSearchInput").addEventListener("input", function () {
+    const filter = this.value.toLowerCase();
+    const rows = document.querySelectorAll("#screenSelectModal tbody tr");
+    rows.forEach(row => {
+        const serial = row.children[0].textContent.toLowerCase();
+        row.style.display = serial.includes(filter) ? "" : "none";
+    });
+});
+
 </script>
 
 </html>

@@ -4,7 +4,7 @@ from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 
-from .models import Asset, ReportableField, ReportableModel, StorageDevice
+from .models import Asset, ReportableField, ReportableModel, Screen, StorageDevice
 
 
 class ReportableFieldAdminForm(forms.ModelForm):
@@ -38,7 +38,7 @@ class ReportableFieldAdminForm(forms.ModelForm):
 
 from django import forms
 
-from .models import Asset
+from .models import Asset, Screen
 
 
 class AssetForm(forms.ModelForm):
@@ -60,3 +60,22 @@ StorageDeviceFormSet = inlineformset_factory(
     min_num=1,
     validate_min=True,
 )
+
+
+
+
+class ScreenForm(forms.ModelForm):
+    class Meta:
+        model = Screen
+        exclude = ['employee','created_by', 'created_at', 'updated_at', 'branch','status']
+        widgets = {
+            'warranty': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Explicitly mark which fields are required or not (optional)
+        self.fields['product'].required = True
+        self.fields['serial'].required = True
+        self.fields['brand'].required = True

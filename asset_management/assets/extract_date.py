@@ -8,7 +8,9 @@ from django.templatetags.static import static
 
 from .models import Asset  # , Screen, Telecom_Access  # Assuming these are your models
 
-
+'''
+the generate_assets_report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch and status, and returns it in the requested format.'''
 def generate_assets_report(request, branch, selected_status, selected_format):
     print(branch, type(branch))
     if (str(branch))=='All':
@@ -259,3 +261,160 @@ def generate_assets_report(request, branch, selected_status, selected_format):
         messages.error(request, "Unsupported format for extraction.")
         return None
     
+    
+import io
+
+import xlsxwriter
+from django.contrib import messages
+from django.http import HttpResponse
+from django.templatetags.static import static
+from django.utils.html import escape
+
+from .models import Screen
+
+'''
+the generate_screens_report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch and status, and returns it in the requested'''
+def generate_screens_report(request, branch, selected_status, selected_format):
+    if str(branch) == 'All':
+        screens = Screen.objects.all()
+        if selected_status and selected_status != 'All':
+            screens = screens.filter(status=selected_status)
+    else:
+        screens = Screen.objects.filter(branch=branch)
+        if selected_status and selected_status != 'All':
+            screens = screens.filter(status=selected_status)
+
+    if not screens.exists():
+        messages.warning(request, 'No data available to extract based on the selected filters.')
+        return None
+
+    headers = [
+        'Product', 'Serial', 'Status', 'Employee', 'Branch'
+    ]
+
+    if selected_format == 'excel':
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet()
+
+        # Styles
+        title_format = workbook.add_format({'bold': True, 'font_size': 16, 'align': 'center'})
+        header_format = workbook.add_format({'bold': True, 'bg_color': '#0a6ebd', 'font_color': 'white', 'border': 1})
+
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+        worksheet.merge_range('A1:E1', f'Screens Report for {report_branch_name}', title_format)
+        worksheet.write_row(1, 0, headers, header_format)
+
+        for row_num, screen in enumerate(screens, start=2):
+            row_data = [
+                screen.product,
+                screen.serial,
+                screen.status,
+                screen.employee.name if screen.employee else '',
+                screen.branch.name if screen.branch else '',
+            ]
+            worksheet.write_row(row_num, 0, row_data)
+
+        for col_num in range(len(headers)):
+            worksheet.set_column(col_num, col_num, 20)
+
+        workbook.close()
+        output.seek(0)
+
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_screens_report.xlsx"'
+        return response
+
+    elif selected_format == 'html':
+        static_logo_url = request.build_absolute_uri(static('MLIT.png'))
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+
+        html_content = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Screens Report - {report_branch_name}</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                    background-color: #f4f4f4;
+                }}
+                .logo {{
+                    width: 150px;
+                    float: right;
+                }}
+                h1 {{
+                    text-align: center;
+                    color: #333;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    background-color: #fff;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                th, td {{
+                    padding: 12px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #0a6ebd;
+                    color: white;
+                }}
+                tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                .highlight-damage {{ background-color: #fdd; font-weight: bold; }}
+                .footer {{
+                    margin-top: 30px;
+                    text-align: center;
+                    color: #666;
+                    font-size: 0.9em;
+                }}
+            </style>
+        </head>
+        <body>
+            <img src="{static_logo_url}" class="logo" />
+            <h1>Screens Report for {escape(report_branch_name)}</h1>
+            <table>
+                <thead>
+                    <tr>
+        '''
+
+        for header in headers:
+            html_content += f'<th>{escape(header)}</th>'
+        html_content += '</tr></thead><tbody>'
+
+        for screen in screens:
+            status_class = "highlight-damage" if screen.status == "Damage" else ""
+            html_content += f'''
+            <tr class="{status_class}">
+                <td>{escape(screen.product)}</td>
+                <td>{escape(screen.serial)}</td>
+                <td>{escape(screen.status)}</td>
+                <td>{escape(screen.employee.name) if screen.employee else '-'}</td>
+                <td>{escape(screen.branch.name) if screen.branch else '-'}</td>
+            </tr>
+            '''
+
+        html_content += '''
+                </tbody>
+            </table>
+            <div class="footer">Generated by MLTI Asset Management System</div>
+        </body>
+        </html>
+        '''
+
+        response = HttpResponse(html_content, content_type='text/html')
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_screens_report.html"'
+        return response
+
+    else:
+        messages.error(request, "Unsupported format for extraction.")
+        return None

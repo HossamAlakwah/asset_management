@@ -163,3 +163,97 @@ def upload_bulk_asset(request, excel_file, branch, slug, user):
         messages.error(request, f"Unexpected error during upload: {e}")
 
     return False
+
+
+'''
+
+Screens upload
+
+'''
+def upload_bulk_screens(request, excel_file, branch, slug, user):
+    import pandas as pd
+
+    from .models import Branch, Screen
+
+    # === 1. Validate file ===
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+        expected_columns = ['Product', 'Serial','Brand']
+
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns: {', '.join(missing)}")
+            return False
+
+        try:
+            branch = Branch.objects.get(slug='stock')
+        except Branch.DoesNotExist:
+            messages.error(request, "Branch with slug='stock' not found.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    product = row['Product']
+                    serial = row['Serial']
+                    brand = row['Brand']
+
+                    if pd.isna(product) or pd.isna(serial) or pd.isna(brand):
+                        errors.append(
+                            f"Row {idx + 2}: Missing required field(s) – "
+                            f"Product: {'✔' if not pd.isna(product) else '✘'}, "
+                            f"Serial: {'✔' if not pd.isna(serial) else '✘'}, "
+                            f"Brand: {'✔' if not pd.isna(brand) else '✘'}"
+                        )
+                        continue
+
+                    # Convert to string after validation
+                    product = str(product).strip()
+                    serial = str(serial).strip()
+                    brand = str(brand).strip()
+
+                    if Screen.objects.filter(serial=serial).exists():
+                        errors.append(f"Skipped duplicate serial"+ serial)
+                        skipped += 1
+                        continue
+
+                    screen = Screen.objects.create(
+                        product=product,
+                        serial=serial,
+                        brand=brand,
+                        status='Stock',
+                        employee=None,
+                        branch=branch,
+                        created_by=user
+                    )
+                    screen._changed_by = user
+                    screen.save()
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error for Serial '{row.get('Serial', 'N/A')}': {e}")
+
+        # Final feedback
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Upload completed with {len(errors)} error(s), {imported} screens added, {skipped} skipped.")
+        else:
+            messages.success(request, f"{imported} screens successfully imported. {skipped} duplicate serials skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during screen upload: {e}")
+
+    return False

@@ -5,9 +5,12 @@ from django.http import HttpResponse
 from openpyxl.styles import PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from .models import Asset, StorageDevice
+from .models import Asset, Screen, StorageDevice
 
-
+'''
+Generate asset template
+This function creates an Excel template for bulk asset upload with predefined headers and drop-downs.
+'''
 def generate_asset_template():
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -52,4 +55,41 @@ def generate_asset_template():
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = 'attachment; filename=asset_template.xlsx'
+    return response
+
+'''
+Generate screen template
+This function creates an Excel template for bulk screen upload with predefined headers and drop-down
+'''
+def generate_screen_template():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Screens Upload"
+
+    headers = ['Product', 'Serial','Brand']
+    ws.append(headers)
+
+    # Highlight required fields
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col in ['A', 'B','C']:
+        ws[f"{col}1"].fill = red_fill
+
+    # Add dropdown for Product
+    def add_dropdown(col_letter, choices):
+        dv = DataValidation(type="list", formula1=f'"{",".join(choices)}"', allow_blank=False)
+        ws.add_data_validation(dv)
+        dv.add(f"{col_letter}2:{col_letter}100")
+
+    add_dropdown("A", [c[0] for c in Screen.PRODUCT_CHOICES])
+
+    # Return file
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=screen_template.xlsx'
     return response

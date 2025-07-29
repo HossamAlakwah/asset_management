@@ -2,9 +2,12 @@ from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from .models import Asset, AssetLog
+from .models import Asset, AssetLog, Screen, ScreenLog
 
-
+'''
+asset management signals
+These signals are used to log changes to assets, such as creation, updates, and deletions
+'''
 @receiver(post_save, sender=Asset)
 def log_asset_create(sender, instance, created, **kwargs):
     if not created:
@@ -68,6 +71,66 @@ def log_asset_delete(sender, instance, **kwargs):
         new_employee=None,
         on_hand_date=instance.on_hand_date,
         return_date=instance.return_date,
+        branch=instance.branch,
+        change_time=timezone.now()
+    )
+
+'''Screen management signals
+These signals are used to log changes to screens, such as creation, updates, and deletions
+'''
+@receiver(post_save, sender=Screen)
+def log_screen_create(sender, instance, created, **kwargs):
+    if not created:
+        return
+
+    ScreenLog.objects.create(
+        screen=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=None,
+        new_status=instance.status,
+        old_employee=instance.employee,
+        new_employee=instance.employee,
+        branch=instance.branch,
+        change_time=timezone.now()
+    )
+
+@receiver(pre_save, sender=Screen)
+def log_screen_update(sender, instance, **kwargs):
+    if not instance.pk:
+        return  # Let post_save handle creation
+
+    try:
+        old = Screen.objects.get(pk=instance.pk)
+    except Screen.DoesNotExist:
+        return
+
+    changed = (
+        old.status != instance.status or
+        old.employee != instance.employee or
+        old.branch != instance.branch
+    )
+
+    if changed:
+        ScreenLog.objects.create(
+            screen=instance,
+            changed_by=getattr(instance, '_changed_by', None),
+            old_status=old.status,
+            new_status=instance.status,
+            old_employee=old.employee,
+            new_employee=instance.employee,
+            branch=instance.branch,
+            change_time=timezone.now()
+        )
+
+@receiver(pre_delete, sender=Screen)
+def log_screen_delete(sender, instance, **kwargs):
+    ScreenLog.objects.create(
+        screen=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=instance.status,
+        new_status='Deleted',
+        old_employee=instance.employee,
+        new_employee=None,
         branch=instance.branch,
         change_time=timezone.now()
     )
