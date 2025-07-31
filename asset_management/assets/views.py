@@ -23,12 +23,23 @@ from django.views.decorators.http import require_POST
 from .download_templates import (
     generate_asset_template,
     generate_camera_template,
+    generate_nvr_template,
     generate_screen_template,
 )
 from .extract_date import (
     generate_assets_report,
     generate_cameras_report,
+    generate_nvrs_report,
     generate_screens_report,
+)
+from .forms import (
+    AssetForm,
+    CameraEditForm,
+    CameraForm,
+    NVREditForm,
+    NVRForm,
+    ScreenForm,
+    StorageDeviceFormSet,
 )
 from .models import (
     NVR,
@@ -38,6 +49,7 @@ from .models import (
     Camera,
     CameraLog,
     Employee,
+    NVRLog,
     ReportableField,
     ReportableModel,
     Screen,
@@ -48,6 +60,7 @@ from .upload_data import (
     upload_bulk_asset,
     upload_bulk_cameras,
     upload_bulk_employee,
+    upload_bulk_nvrs,
     upload_bulk_screens,
 )
 
@@ -538,13 +551,7 @@ def edit_asset(request, asset_id):
     })
 
 
-from .forms import (
-    AssetForm,
-    CameraEditForm,
-    CameraForm,
-    ScreenForm,
-    StorageDeviceFormSet,
-)
+
 
 
 @login_required
@@ -1079,8 +1086,182 @@ This view allows users to extract screen data based on selected status and forma
 '''
 @login_required
 def extract_cameras_data(request, slug):
+    
+    
+    
+    
     branch = get_object_or_404(Branch, slug=slug) if slug != 'All' else 'All'
     selected_status = request.POST.get('status')
     selected_format = request.POST.get('format')
     
     return generate_cameras_report(request, branch, selected_status, selected_format)
+
+
+''''
+NVR part
+'''
+@login_required
+def all_nvrs(request):
+    unique_asset_types = list(
+        NVR.objects.order_by('status').values_list('status', flat=True).distinct()
+    )
+
+    nvrs = NVR.objects.all().order_by('id')
+    all_count = nvrs.count()
+    stock_count = nvrs.filter(status='Stock').count()
+    in_use_count = nvrs.filter(status='In Use').count()
+    damage_count = nvrs.filter(status='Damage').count()
+
+    context = {
+        'nvrs': nvrs,
+        'all': all_count,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        'unique_asset_types': unique_asset_types,
+    }
+
+    return render(request, 'infra/nvrs/nvr_all.html', context)
+
+
+@login_required
+def branch_nvrs(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    nvrs = NVR.objects.filter(branch=branch)
+
+    total = nvrs.count()
+    stock_count = nvrs.filter(status='Stock').count()
+    in_use_count = nvrs.filter(status='In Use').count()
+    damage_count = nvrs.filter(status='Damage').count()
+
+    context = {
+        'branch': branch,
+        'nvrs': nvrs,
+        'all': total,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        'current_branch_slug': slug,
+    }
+
+    return render(request, 'infra/nvrs/nvrs_by_branch.html', context)
+
+
+@xframe_options_exempt
+def nvr_details(request, nvr_id):
+    nvr = get_object_or_404(NVR, pk=nvr_id)
+    return render(request, 'infra/nvrs/nvr_details.html', {'nvr': nvr})
+
+def edit_nvr(request, nvr_id):
+    nvr = get_object_or_404(NVR, pk=nvr_id)
+
+    stock_branch = Branch.objects.filter(name__iexact='stock').first()
+    choosable_branches = Branch.objects.filter(choosable=True)
+
+    if request.method == 'POST':
+        form = NVREditForm(request.POST, instance=nvr)
+
+        if form.is_valid():
+            nvr = form.save(commit=False)
+            status = form.cleaned_data.get('status')
+
+            if status != 'In Use':
+                nvr.branch = stock_branch
+                nvr.location = 'stock'
+            else:
+                branch = form.cleaned_data.get('branch')
+                if branch and branch.choosable:
+                    nvr.branch = branch
+                else:
+                    messages.error(request, "Please select a valid branch.")
+                    return render(request, 'infra/nvrs/nvr_edit.html', {
+                        'form': form,
+                        'nvr': nvr,
+                        'choosable_branches': choosable_branches,
+                        'stock_branch': stock_branch,
+                        'status': status,
+                    })
+
+            if nvr.status == 'Stock' and status == 'In Use':
+                nvr.location = None
+
+            nvr._changed_by = request.user
+            nvr.save()
+            return redirect('nvr_details', nvr_id=nvr.id)
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = NVREditForm(instance=nvr)
+
+    return render(request, 'infra/nvrs/nvr_edit.html', {
+        'form': form,
+        'nvr': nvr,
+        'choosable_branches': choosable_branches,
+        'stock_branch': stock_branch,
+        'status': nvr.status,
+    })
+
+@login_required
+def add_nvr(request):
+    if request.method == 'POST':
+        form = NVRForm(request.POST)
+        if form.is_valid():
+            nvr = form.save(commit=False)
+            nvr.created_by = request.user
+            nvr.status = 'Stock'
+            nvr.branch = Branch.objects.get(name__iexact='stock')
+            nvr._changed_by = request.user
+            nvr.save()
+
+            messages.success(request, 'NVR added successfully.')
+            return redirect('all_nvrs')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = NVRForm()
+
+    return render(request, 'infra/nvrs/nvr_create.html', {'form': form})
+
+@login_required
+def all_nvr_logs(request, slug):
+    if slug == 'All':
+        logs = NVRLog.objects.all().order_by('-change_time')
+        branch = None
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        nvr_ids = NVR.objects.filter(branch=branch).values_list('id', flat=True)
+        logs = NVRLog.objects.filter(nvr_id__in=nvr_ids).order_by('-change_time')
+
+    return render(request, 'infra/nvrs/nvr_logs.html', {
+        'logs': logs,
+        'branch': branch,
+        'current_branch_slug': slug,
+    })
+
+@require_POST 
+@login_required
+def upload_nvrs(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    if 'excel_file' in request.FILES:
+        excel_file = request.FILES['excel_file']
+        print(request.user)
+        success = upload_bulk_nvrs(request, excel_file, branch, slug, request.user)
+
+        if not success:
+            return redirect('branch_assets', slug=slug) if slug != 'stock' else redirect('all_nvrs')
+    else:
+        messages.error(request, "No Excel file was uploaded.")
+
+    return redirect('branch_assets', slug=slug) if slug != 'stock' else redirect('all_nvrs')
+
+@login_required
+def download_nvr_template(request):
+    return generate_nvr_template()
+
+@login_required
+def extract_nvrs_data(request, slug):
+    branch = get_object_or_404(Branch, slug=slug) if slug != 'All' else 'All'
+    selected_status = request.POST.get('status')
+    selected_format = request.POST.get('format')
+    
+    return generate_nvrs_report(request, branch, selected_status, selected_format)

@@ -58,6 +58,18 @@ urlpatterns = [
     path('cameras/template/download/', views.download_cameras_template, name='download_cameras_template'),
     path('branches/<slug:slug>/extract-cameras/', views.extract_cameras_data, name='extract_cameras_bulk'),
 
+    #NVR part
+    path('nvrs/', views.all_nvrs, name='all_nvrs'),
+    path('nvrs/add/', views.add_nvr, name='add_nvr'),
+    path('nvrs/<int:nvr_id>/', views.nvr_details, name='nvr_details'),
+    path('nvrs/<slug:slug>/', views.branch_nvrs, name='branch_nvrs'),
+    path('nvrs/<int:nvr_id>/edit/', views.edit_nvr, name='edit_nvr'),
+
+    path('logs/nvrs/<slug:slug>/', views.all_nvr_logs, name='all_nvrs_log'),
+
+    path('branches/<slug:slug>/upload-nvrs/', views.upload_nvrs, name='upload_nvrs'),
+    path('nvrs/template/download/', views.download_nvr_template, name='download_nvrs_template'),
+    path('branches/<slug:slug>/extract-nvrs/', views.extract_nvrs_data, name='extract_nvrs_bulk'),
     # # Telecom-Access Related
     # path('telecom-access/', views.all_telecom_access, name='all_telecom_access'),
     # path('branches/<slug:slug>/telecom-access/', views.branch_telecom_access, name='branch_telecom_access'),

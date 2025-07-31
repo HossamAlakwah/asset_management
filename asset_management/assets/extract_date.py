@@ -7,7 +7,7 @@ from django.http import HttpResponse
 from django.templatetags.static import static
 from django.utils.html import escape
 
-from .models import Asset, Camera, Screen
+from .models import NVR, Asset, Camera, Screen
 
 '''
 the generate_assets_report function to handle both HTML and Excel formats
@@ -414,7 +414,9 @@ def generate_screens_report(request, branch, selected_status, selected_format):
 
 
 
-
+'''
+the generate_cameras_report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch and status, and returns it in the requested'''
 def generate_cameras_report(request, branch, selected_status, selected_format):
     if str(branch) == 'All':
         cameras = Camera.objects.all()
@@ -561,6 +563,162 @@ def generate_cameras_report(request, branch, selected_status, selected_format):
         response = HttpResponse(html_content, content_type='text/html')
         filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
         response['Content-Disposition'] = f'attachment; filename="{filename_slug}_cameras_report.html"'
+        return response
+
+    else:
+        messages.error(request, "Unsupported format for extraction.")
+        return None
+
+
+
+'''
+the generate_NVRs_report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch and status, and returns it in the requested'''
+def generate_nvrs_report(request, branch, selected_status, selected_format):
+    if str(branch) == 'All':
+        nvrs = NVR.objects.all()
+        if selected_status and selected_status != 'All':
+            nvrs = nvrs.filter(status=selected_status)
+    else:
+        nvrs = NVR.objects.filter(branch=branch)
+        if selected_status and selected_status != 'All':
+            nvrs = nvrs.filter(status=selected_status)
+
+    if not nvrs.exists():
+        messages.warning(request, 'No data available to extract based on the selected filters.')
+        return None
+
+    headers = [
+        'Model', 'Serial Number', 'HDD Capacity', 'Number of Ports',
+        'IP Address', 'MAC Address', 'Location', 'Status', 'Branch'
+    ]
+
+    if selected_format == 'excel':
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet()
+
+        title_format = workbook.add_format({'bold': True, 'font_size': 16, 'align': 'center'})
+        header_format = workbook.add_format({'bold': True, 'bg_color': '#0a6ebd', 'font_color': 'white', 'border': 1})
+
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+        worksheet.merge_range('A1:I1', f'NVRs Report for {report_branch_name}', title_format)
+        worksheet.write_row(1, 0, headers, header_format)
+
+        for row_num, nvr in enumerate(nvrs, start=2):
+            row_data = [
+                nvr.model,
+                nvr.serial_number,
+                nvr.hdd_capacity,
+                nvr.number_of_ports,
+                nvr.ip_address or '',
+                nvr.mac_address or '',
+                nvr.location or '',
+                nvr.status,
+                nvr.branch.name if nvr.branch else '',
+            ]
+            worksheet.write_row(row_num, 0, row_data)
+
+        for col_num in range(len(headers)):
+            worksheet.set_column(col_num, col_num, 20)
+
+        workbook.close()
+        output.seek(0)
+
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_nvrs_report.xlsx"'
+        return response
+
+    elif selected_format == 'html':
+        static_logo_url = request.build_absolute_uri(static('MLIT.png'))
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+
+        html_content = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>NVRs Report - {escape(report_branch_name)}</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                    background-color: #f4f4f4;
+                }}
+                .logo {{
+                    width: 150px;
+                    float: right;
+                }}
+                h1 {{
+                    text-align: center;
+                    color: #333;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    background-color: #fff;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                th, td {{
+                    padding: 12px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #0a6ebd;
+                    color: white;
+                }}
+                tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                .highlight-damage {{ background-color: #fdd; font-weight: bold; }}
+                .footer {{
+                    margin-top: 30px;
+                    text-align: center;
+                    color: #666;
+                    font-size: 0.9em;
+                }}
+            </style>
+        </head>
+        <body>
+            <img src="{static_logo_url}" class="logo" />
+            <h1>NVRs Report for {escape(report_branch_name)}</h1>
+            <table>
+                <thead>
+                    <tr>
+        '''
+        for header in headers:
+            html_content += f'<th>{escape(header)}</th>'
+        html_content += '</tr></thead><tbody>'
+
+        for nvr in nvrs:
+            status_class = "highlight-damage" if nvr.status == "Damage" else ""
+            html_content += f'''
+            <tr class="{status_class}">
+                <td>{escape(nvr.model)}</td>
+                <td>{escape(nvr.serial_number)}</td>
+                <td>{escape(nvr.hdd_capacity)}</td>
+                <td>{escape(nvr.number_of_ports)}</td>
+                <td>{escape(nvr.ip_address) if nvr.ip_address else '-'}</td>
+                <td>{escape(nvr.mac_address) if nvr.mac_address else '-'}</td>
+                <td>{escape(nvr.location) if nvr.location else '-'}</td>
+                <td>{escape(nvr.status)}</td>
+                <td>{escape(nvr.branch.name) if nvr.branch else '-'}</td>
+            </tr>
+            '''
+
+        html_content += '''
+                </tbody>
+            </table>
+            <div class="footer">Generated by MLTI Asset Management System</div>
+        </body>
+        </html>
+        '''
+
+        response = HttpResponse(html_content, content_type='text/html')
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_nvrs_report.html"'
         return response
 
     else:

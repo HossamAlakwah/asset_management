@@ -1,0 +1,149 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Asset Management System | NVR Logs</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">NVR Change Logs</h1>
+            {% if current_branch_slug == 'All' %}
+                <a href="{% url 'all_nvrs' %}" class="header-back-btn">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+            {% else %}
+                <a href="{% url 'branch_nvrs' slug=current_branch_slug %}" class="header-back-btn">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+            {% endif %}
+        </div>
+
+        <div class="search-container">
+            <input type="text" id="search-input" placeholder="Search by serial or location..." onkeyup="filterLogs()" />
+            <select id="status-filter" onchange="filterLogs()">
+                <option value="">All Statuses</option>
+                <option value="In Use">In Use</option>
+                <option value="Damage">Damage</option>
+                <option value="Stock">Stock</option>
+            </select>
+        </div>
+
+        <div class="controls">
+            <div class="button-group">
+                <button class="btn btn-success" onclick="exportToExcel()">
+                    <i class="fas fa-file-excel"></i> Export to Excel
+                </button>
+                <button class="btn btn-primary" onclick="exportToHTML()">
+                    <i class="fas fa-file-code"></i> Export to HTML
+                </button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>NVR Serial</th>
+                        <th>New Status</th>
+                        <th>New Location</th>
+                        <th>Branch</th>
+                        <th>Changed By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if logs %}
+                        {% for log in logs %}
+                        <tr>
+                            <td>{{ log.change_time|date:"Y-m-d H:i:s" }}</td>
+                            <td>{{ log.nvr.serial_number|default:"N/A" }}</td>
+                            <td>
+                                {% if log.new_status %}
+                                    <span class="status-badge status-{{ log.new_status|lower|cut:' ' }}">
+                                        {{ log.new_status }}
+                                    </span>
+                                {% else %}-{% endif %}
+                            </td>
+                            <td>{{ log.new_location|default:"-" }}</td>
+                            <td>{{ log.branch.name|default:"N/A" }}</td>
+                            <td>{{ log.changed_by|default:"System" }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="no-logs">
+                                <i class="fas fa-inbox"></i>
+                                <p>No NVR logs available.</p>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function filterLogs() {
+            const searchInput = document.getElementById('search-input').value.toLowerCase();
+            const statusFilter = document.getElementById('status-filter').value.toLowerCase();
+            const rows = document.querySelectorAll('tbody tr');
+
+            rows.forEach(row => {
+                if (row.querySelector('.no-logs')) return;
+
+                const serial = row.cells[1].textContent.toLowerCase();
+                const newStatus = row.cells[2].textContent.toLowerCase();
+                const location = row.cells[3].textContent.toLowerCase();
+
+                const matchesSearch = serial.includes(searchInput) || location.includes(searchInput);
+                const matchesStatus = !statusFilter || newStatus.includes(statusFilter);
+
+                row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
+            });
+        }
+
+        function exportToExcel() {
+            const table = document.querySelector('table');
+            const wb = XLSX.utils.table_to_book(table, { sheet: "NVR Logs" });
+            XLSX.writeFile(wb, 'nvr_logs.xlsx');
+        }
+
+        function exportToHTML() {
+            const table = document.querySelector('table');
+            const hiddenRows = document.querySelectorAll('tbody tr[style*="display: none"]');
+            hiddenRows.forEach(row => row.style.display = '');
+
+            const html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>NVR Logs</title>
+                    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+                    <style>${document.querySelector('style')?.innerHTML || ''}</style>
+                </head>
+                <body>
+                    <h1 style="text-align:center;">NVR Logs</h1>
+                    <div class="table-container">${table.outerHTML}</div>
+                </body>
+                </html>`;
+
+            hiddenRows.forEach(row => row.style.display = 'none');
+
+            const blob = new Blob([html], { type: 'text/html' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'nvr_logs.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+</body>
+</html>

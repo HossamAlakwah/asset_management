@@ -4,7 +4,7 @@ import pandas as pd
 from django.contrib import messages
 from django.db import transaction
 
-from .models import Asset, Branch, Camera, Employee, StorageDevice
+from .models import NVR, Asset, Branch, Camera, Employee, StorageDevice
 
 '''
 
@@ -225,7 +225,7 @@ def upload_bulk_screens(request, excel_file, branch, slug, user):
                         skipped += 1
                         continue
 
-                    screen = Screen.objects.create(
+                    screen = Screen(
                         product=product,
                         serial=serial,
                         brand=brand,
@@ -261,7 +261,7 @@ def upload_bulk_screens(request, excel_file, branch, slug, user):
 
 
 '''
-upload buld camera functions
+upload bulk camera functions
 '''
 def upload_bulk_cameras(request, excel_file, branch, slug, user):
     # === 1. Validate file ===
@@ -321,7 +321,7 @@ def upload_bulk_cameras(request, excel_file, branch, slug, user):
                         skipped += 1
                         continue
 
-                    camera = Camera.objects.create(
+                    camera = Camera(
                         model=model,
                         serial_number=serial,
                         power_source=power,
@@ -335,7 +335,7 @@ def upload_bulk_cameras(request, excel_file, branch, slug, user):
                     )
                     camera._changed_by = user
                     camera.save()
-                    imported += 1
+
 
                 except Exception as e:
                     errors.append(f"Row {idx + 2}: Error for Serial '{row.get('Serial Number', 'N/A')}': {e}")
@@ -354,5 +354,109 @@ def upload_bulk_cameras(request, excel_file, branch, slug, user):
         messages.error(request, "Uploaded Excel file is empty.")
     except Exception as e:
         messages.error(request, f"Unexpected error during camera upload: {e}")
+
+    return False
+
+'''
+upload bulk NVR functions
+'''
+
+def upload_bulk_nvrs(request, excel_file, branch, slug, user):
+    print('uploading')
+    print(user)
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+        expected_columns = [
+            'Model', 'Serial Number', 'HDD Capacity', 'Number of Ports',
+            'IP Address', 'MAC Address', 'Purchase Date'
+        ]
+
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns: {', '.join(missing)}")
+            return False
+
+        try:
+            stock_branch = Branch.objects.get(slug='stock')
+        except Branch.DoesNotExist:
+            messages.error(request, "Branch with slug='stock' not found.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    model = row['Model']
+                    serial = row['Serial Number']
+                    hdd = row['HDD Capacity']
+                    ports = row['Number of Ports']
+                    ip = row.get('IP Address')
+                    mac = row.get('MAC Address')
+                    purchase = row.get('Purchase Date')
+
+                    if pd.isna(model) or pd.isna(serial) or pd.isna(hdd) or pd.isna(ports):
+                        errors.append(
+                            f"Row {idx + 2}: Missing required field(s) – "
+                            f"Model: {'✔' if not pd.isna(model) else '✘'}, "
+                            f"Serial: {'✔' if not pd.isna(serial) else '✘'}, "
+                            f"HDD Capacity: {'✔' if not pd.isna(hdd) else '✘'}, "
+                            f"Number of Ports: {'✔' if not pd.isna(ports) else '✘'}"
+                        )
+                        continue
+
+                    model = str(model).strip()
+                    serial = str(serial).strip()
+                    hdd = str(hdd).strip()
+                    ports = int(ports)
+                    ip = str(ip).strip() if not pd.isna(ip) else None
+                    mac = str(mac).strip() if not pd.isna(mac) else None
+                    purchase = pd.to_datetime(purchase).date() if not pd.isna(purchase) else None
+
+                    if NVR.objects.filter(serial_number=serial).exists():
+                        errors.append(f"Skipped duplicate serial {serial}")
+                        skipped += 1
+                        continue
+
+                    nvr = NVR(
+                        model=model,
+                        serial_number=serial,
+                        hdd_capacity=hdd,
+                        number_of_ports=ports,
+                        ip_address=ip,
+                        mac_address=mac,
+                        purchase_date=purchase,
+                        status='Stock',
+                        location='Stock',
+                        branch=stock_branch,
+                        created_by=user
+                    )
+                    nvr._changed_by = user
+                    nvr.save()
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error for Serial '{row.get('Serial Number', 'N/A')}': {e}")
+
+        # Final messages
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Upload completed with {len(errors)} error(s), {imported} NVRs added, {skipped} skipped.")
+        else:
+            messages.success(request, f"{imported} NVRs successfully imported. {skipped} duplicate serials skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during NVR upload: {e}")
 
     return False

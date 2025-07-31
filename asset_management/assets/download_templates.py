@@ -5,7 +5,8 @@ from django.http import HttpResponse
 from openpyxl.styles import PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from .models import NVR, Asset, Camera, Screen, StorageDevice
+from .models import NVR  # Make sure NVR is imported
+from .models import Asset, Camera, Screen, StorageDevice
 
 '''
 Generate asset template
@@ -130,4 +131,43 @@ def generate_camera_template():
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = 'attachment; filename=infra_camera_template.xlsx'
+    return response
+
+
+
+''' Generate NVR template
+This function creates an Excel template for bulk NVRs upload with predefined headers'''
+def generate_nvr_template():
+    wb = openpyxl.Workbook()
+
+    # ==================== NVR SHEET ====================
+    ws_nvr = wb.active
+    ws_nvr.title = "NVR Upload"
+    nvr_headers = [
+        'Model', 'Serial Number', 'HDD Capacity', 'Number of Ports',
+        'IP Address', 'MAC Address', 'Purchase Date'
+    ]
+    ws_nvr.append(nvr_headers)
+
+    # Required: Model, Serial Number, HDD Capacity, Number of Ports
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col_letter in ['A', 'B', 'C', 'D']:
+        ws_nvr[f"{col_letter}1"].fill = red_fill
+
+    # Optional: add dropdown for status if needed
+    nvr_status_choices = [choice[0] for choice in NVR.STATUS_CHOICES]
+    dv_status = DataValidation(type="list", formula1=f'"{",".join(nvr_status_choices)}"', allow_blank=False)
+    ws_nvr.add_data_validation(dv_status)
+    dv_status.add("H2:H100")  # Column H = Status (if included)
+
+    # ==================== RETURN FILE ====================
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=infra_nvr_template.xlsx'
     return response

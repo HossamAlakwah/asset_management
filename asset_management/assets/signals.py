@@ -2,7 +2,7 @@ from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from .models import Asset, AssetLog, Camera, CameraLog, Screen, ScreenLog
+from .models import NVR, Asset, AssetLog, Camera, CameraLog, NVRLog, Screen, ScreenLog
 
 '''
 asset management signals
@@ -195,6 +195,71 @@ def log_camera_update(sender, instance, **kwargs):
 def log_camera_delete(sender, instance, **kwargs):
     CameraLog.objects.create(
         camera=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=instance.status,
+        new_status='Deleted',
+        old_location=instance.location,
+        new_location='Deleted',
+        old_branch=instance.branch,
+        new_branch=None,
+        comment=instance.comment,
+        change_time=timezone.now()
+    )
+
+@receiver(post_save, sender=NVR)
+def log_nvr_create(sender, instance, created, **kwargs):
+    if not created:
+        return  # Skip updates, only log creation
+
+    NVRLog.objects.create(
+        nvr=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=None,
+        new_status=instance.status,
+        old_location=None,
+        new_location="stock",
+        old_branch=None,
+        new_branch=instance.branch,
+        comment=instance.comment,
+        change_time=timezone.now()
+    )
+
+
+@receiver(pre_save, sender=NVR)
+def log_nvr_update(sender, instance, **kwargs):
+    if not instance.pk:
+        return  # Skip if object is new (creation is handled in post_save)
+
+    try:
+        old = NVR.objects.get(pk=instance.pk)
+    except NVR.DoesNotExist:
+        return
+
+    changed = (
+        old.status != instance.status or
+        old.location != instance.location or
+        old.branch != instance.branch
+    )
+
+    if changed:
+        NVRLog.objects.create(
+            nvr=instance,
+            changed_by=getattr(instance, '_changed_by', None),
+            old_status=old.status,
+            new_status=instance.status,
+            old_location=old.location,
+            new_location=instance.location,
+            old_branch=old.branch,
+            new_branch=instance.branch,
+            comment=instance.comment,
+            change_time=timezone.now()
+        )
+
+
+@receiver(pre_delete, sender=NVR)
+def log_nvr_delete(sender, instance, **kwargs):
+    NVRLog.objects.create(
+        nvr=instance,
         changed_by=getattr(instance, '_changed_by', None),
         old_status=instance.status,
         new_status='Deleted',

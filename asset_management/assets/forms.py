@@ -142,11 +142,16 @@ class NVRForm(forms.ModelForm):
         model = NVR
         exclude = [
             'created_by', 'created_at', 'updated_at', 
-            'branch', 'status', 'comment'
+            'branch', 'status', 'location'
         ]
         widgets = {
             'purchase_date': forms.DateInput(attrs={'type': 'date'}),
         }
+
+    field_order = [
+        'serial_number', 'model', 'hdd_capacity', 'number_of_ports',
+        'ip_address', 'mac_address', 'purchase_date', 'comment'
+    ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -154,3 +159,26 @@ class NVRForm(forms.ModelForm):
         self.fields['serial_number'].required = True
         self.fields['hdd_capacity'].required = True
         self.fields['number_of_ports'].required = True
+
+class NVREditForm(forms.ModelForm):
+    class Meta:
+        model = NVR
+        exclude = ['created_by', 'created_at', 'updated_at']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields['serial_number'].disabled = True
+        self.fields['purchase_date'].disabled = True
+        self.fields['mac_address'].disabled = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        status = cleaned_data.get('status')
+        location = cleaned_data.get('location')
+
+        if status == 'In Use' and not location:
+            self.add_error('location', "Location is required when status is 'In Use'.")
+
+        return cleaned_data
