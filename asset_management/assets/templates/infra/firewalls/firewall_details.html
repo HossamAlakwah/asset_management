@@ -124,7 +124,14 @@
                 <label>Model</label>
                 <div class="info-value"><i class="fas fa-shield-alt"></i> <span>{{ firewall.model }}</span></div>
             </div>
-
+            <div class="info-group">
+                <label>IP</label>
+                <div class="info-value"><i class="fas fa-shield-alt"></i> <span>{{ firewall.ip_address }}</span></div>
+            </div>
+            <div class="info-group">
+                <label>MAC</label>
+                <div class="info-value"><i class="fas fa-shield-alt"></i> <span>{{ firewall.mac_address }}</span></div>
+            </div>
             <div class="info-group">
                 <label>Status</label>
                 <div class="info-value"><i class="fas fa-info-circle"></i> <span>{{ firewall.status }}</span></div>
@@ -142,7 +149,7 @@
 
             <div class="info-group">
                 <label>License Expiry</label>
-                <div class="info-value"><i class="far fa-calendar-check"></i> <span>{{ firewall.license_expiry|default:"-" }}</span></div>
+                <div class="info-value"><i class="far fa-calendar-check"></i> <span>{{ firewall.license_expiry_date|default:"-" }}</span></div>
             </div>
 
             <div class="info-group">

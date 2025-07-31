@@ -427,7 +427,7 @@ class NVRLog(InfraAssetLogBase):
 class Firewall(InfraAsset):
     firmware_version = models.CharField(max_length=255, blank=True, null=True)
     number_of_ports = models.IntegerField(blank=True, null=True)
-    license_expiry = models.DateField(blank=True, null=True)
+    license_expiry_date = models.DateField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.model} - {self.serial_number}"

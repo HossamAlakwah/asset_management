@@ -73,6 +73,16 @@
                 <label for="id_firmware_version">Firmware Version</label>
                 {{ form.firmware_version|add_class:"form-control" }}
             </div>
+            
+            <div class="form-group">
+                <label for="id_ip_address">IP Address</label>
+                {{ form.ip_address|add_class:"form-control" }}
+            </div>
+
+            <div class="form-group">
+                <label for="id_mac_address">MAC Address</label> 
+                {{ form.mac_address|add_class:"form-control" }}
+            </div>
 
             <div class="form-group">
                 <label for="id_number_of_ports">Number of Ports</label>
@@ -81,7 +91,7 @@
 
             <div class="form-group">
                 <label for="id_license_expiry">License Expiry</label>
-                {{ form.license_expiry|add_class:"form-control" }}
+                {{ form.license_expiry_date|add_class:"form-control" }}
             </div>
 
             <div class="form-group">

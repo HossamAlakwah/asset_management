@@ -217,7 +217,7 @@ class FirewallEditForm(forms.ModelForm):
 
         self.fields['serial_number'].disabled = True
         self.fields['purchase_date'].disabled = True
-        self.fields['mac_address'].disabled = True
+        # self.fields['mac_address'].disabled = True
 
     def clean(self):
         cleaned_data = super().clean()
