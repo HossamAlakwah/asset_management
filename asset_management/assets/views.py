@@ -23,12 +23,14 @@ from django.views.decorators.http import require_POST
 from .download_templates import (
     generate_asset_template,
     generate_camera_template,
+    generate_firewall_template,
     generate_nvr_template,
     generate_screen_template,
 )
 from .extract_date import (
     generate_assets_report,
     generate_cameras_report,
+    generate_firewalls_report,
     generate_nvrs_report,
     generate_screens_report,
 )
@@ -36,6 +38,8 @@ from .forms import (
     AssetForm,
     CameraEditForm,
     CameraForm,
+    FirewallEditForm,
+    FirewallForm,
     NVREditForm,
     NVRForm,
     ScreenForm,
@@ -49,6 +53,8 @@ from .models import (
     Camera,
     CameraLog,
     Employee,
+    Firewall,
+    FirewallLog,
     NVRLog,
     ReportableField,
     ReportableModel,
@@ -60,6 +66,7 @@ from .upload_data import (
     upload_bulk_asset,
     upload_bulk_cameras,
     upload_bulk_employee,
+    upload_bulk_firewalls,
     upload_bulk_nvrs,
     upload_bulk_screens,
 )
@@ -771,6 +778,7 @@ def edit_screen(request, screen_id):
         screen.save()
 
         messages.success(request, f"Screen {serial} updated.")
+        
         return redirect('edit_screen', screen_id=screen.id)
 
     return render(request, 'screens/screens_edit.html', {
@@ -960,7 +968,7 @@ def camera_details(request, camera_id):
 
 def edit_camera(request, camera_id):
     camera = get_object_or_404(Camera, pk=camera_id)
-
+    slug=request.slug
     stock_branch = Branch.objects.filter(name__iexact='stock').first()
     choosable_branches = Branch.objects.filter(choosable=True)
 
@@ -996,8 +1004,8 @@ def edit_camera(request, camera_id):
 
             camera._changed_by = request.user
             camera.save()
-
-            return redirect('camera_details', camera_id=camera.id)
+            
+            return redirect('all_cameras')
         else:
             messages.error(request, "Please correct the errors below.")
     else:
@@ -1265,3 +1273,169 @@ def extract_nvrs_data(request, slug):
     selected_format = request.POST.get('format')
     
     return generate_nvrs_report(request, branch, selected_status, selected_format)
+
+''' Firewall part'''
+
+@login_required
+def all_firewalls(request):
+    unique_asset_types = list(
+        Firewall.objects.order_by('status').values_list('status', flat=True).distinct()
+    )
+    firewalls = Firewall.objects.all().order_by('id')
+    all_count = firewalls.count()
+    stock_count = firewalls.filter(status='Stock').count()
+    in_use_count = firewalls.filter(status='In Use').count()
+    damage_count = firewalls.filter(status='Damage').count()
+
+    context = {
+        'firewalls': firewalls,
+        'all': all_count,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        "unique_asset_types": unique_asset_types,
+    }
+
+    return render(request, 'infra/firewalls/firewall_all.html', context)
+
+
+@login_required
+def branch_firewalls(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    firewalls = Firewall.objects.filter(branch=branch)
+
+    context = {
+        'branch': branch,
+        'firewalls': firewalls,
+        'all': firewalls.count(),
+        'stock_count': firewalls.filter(status='Stock').count(),
+        'in_use_count': firewalls.filter(status='In Use').count(),
+        'damage_count': firewalls.filter(status='Damage').count(),
+        'current_branch_slug': slug,
+    }
+
+    return render(request, 'infra/firewalls/firewall_branch.html', context)
+
+
+@xframe_options_exempt
+@login_required
+def firewall_details(request, firewall_id):
+    firewall = get_object_or_404(Firewall, pk=firewall_id)
+    return render(request, 'infra/firewalls/firewall_details.html', {'firewall': firewall})
+
+
+@login_required
+def edit_firewall(request, firewall_id):
+    firewall = get_object_or_404(Firewall, pk=firewall_id)
+    stock_branch = Branch.objects.filter(name__iexact='stock').first()
+    choosable_branches = Branch.objects.filter(choosable=True)
+
+    if request.method == 'POST':
+        form = FirewallEditForm(request.POST, instance=firewall)
+        if form.is_valid():
+            firewall = form.save(commit=False)
+            status = form.cleaned_data.get('status')
+
+            if status != 'In Use':
+                firewall.branch = stock_branch
+                firewall.location = 'stock'
+            else:
+                branch = form.cleaned_data.get('branch')
+                if branch and branch.choosable:
+                    firewall.branch = branch
+                else:
+                    messages.error(request, "Please select a valid branch.")
+                    return render(request, 'infra/firewalls/firewall_edit.html', {
+                        'form': form,
+                        'firewall': firewall,
+                        'choosable_branches': choosable_branches,
+                        'stock_branch': stock_branch,
+                        'status': status,
+                    })
+
+            if firewall.status == 'Stock' and status == 'In Use':
+                firewall.location = None
+
+            firewall._changed_by = request.user
+            firewall.save()
+
+            return redirect('all_firewalls')
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = FirewallEditForm(instance=firewall)
+
+    return render(request, 'infra/firewalls/firewall_edit.html', {
+        'form': form,
+        'firewall': firewall,
+        'choosable_branches': choosable_branches,
+        'stock_branch': stock_branch,
+        'status': firewall.status,
+    })
+
+
+@login_required
+def add_firewall(request):
+    if request.method == 'POST':
+        form = FirewallForm(request.POST)
+        if form.is_valid():
+            firewall = form.save(commit=False)
+            firewall.created_by = request.user
+            firewall.status = 'Stock'
+            firewall.branch = Branch.objects.get(name__iexact='stock')
+            firewall._changed_by = request.user
+            firewall.save()
+            messages.success(request, 'Firewall added successfully.')
+            return redirect('all_firewalls')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = FirewallForm()
+
+    return render(request, 'infra/firewalls/firewall_create.html', {'form': form})
+
+
+@login_required
+def all_firewalls_log(request, slug):
+    if slug == 'All':
+        logs = FirewallLog.objects.all().order_by('-change_time')
+        branch = None
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        firewall_ids = Firewall.objects.filter(branch=branch).values_list('id', flat=True)
+        logs = FirewallLog.objects.filter(firewall_id__in=firewall_ids).order_by('-change_time')
+
+    return render(request, 'infra/firewalls/firewall_logs.html', {
+        'logs': logs,
+        'branch': branch,
+        'current_branch_slug': slug,
+    })
+
+
+@require_POST
+@login_required
+def upload_firewalls(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    if 'excel_file' in request.FILES:
+        excel_file = request.FILES['excel_file']
+        success = upload_bulk_firewalls(request, excel_file, branch, slug, request.user)
+
+        if not success:
+            return redirect('all_firewalls') if slug != 'stock' else redirect('all_firewalls')
+    else:
+        messages.error(request, "No Excel file was uploaded.")
+
+    return redirect('branch_assets', slug=slug) if slug != 'stock' else redirect('all_firewalls')
+
+
+@login_required
+def download_firewalls_template(request):
+    return generate_firewall_template()
+
+
+@login_required
+def extract_firewalls_data(request, slug):
+    branch = get_object_or_404(Branch, slug=slug) if slug != 'All' else 'All'
+    selected_status = request.POST.get('status')
+    selected_format = request.POST.get('format')
+    return generate_firewalls_report(request, branch, selected_status, selected_format)

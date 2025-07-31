@@ -64,12 +64,22 @@ urlpatterns = [
     path('nvrs/<int:nvr_id>/', views.nvr_details, name='nvr_details'),
     path('nvrs/<slug:slug>/', views.branch_nvrs, name='branch_nvrs'),
     path('nvrs/<int:nvr_id>/edit/', views.edit_nvr, name='edit_nvr'),
-
     path('logs/nvrs/<slug:slug>/', views.all_nvr_logs, name='all_nvrs_log'),
-
     path('branches/<slug:slug>/upload-nvrs/', views.upload_nvrs, name='upload_nvrs'),
     path('nvrs/template/download/', views.download_nvr_template, name='download_nvrs_template'),
     path('branches/<slug:slug>/extract-nvrs/', views.extract_nvrs_data, name='extract_nvrs_bulk'),
+    
+    # Firewalls part
+    path('firewalls/', views.all_firewalls, name='all_firewalls'),
+    path('firewalls/add/', views.add_firewall, name='add_firewall'),
+    path('firewalls/<int:firewall_id>/', views.firewall_details, name='firewall_details'),
+    path('firewalls/<slug:slug>/', views.branch_firewalls, name='branch_firewalls'),
+    path('firewalls/<int:firewall_id>/edit/', views.edit_firewall, name='edit_firewall'),
+    path('logs/firewalls/<slug:slug>/', views.all_firewalls_log, name='all_firewalls_log'),
+    path('branches/<slug:slug>/upload-firewalls/', views.upload_firewalls, name='upload_firewalls'),
+    path('firewalls/template/download/', views.download_firewalls_template, name='download_firewalls_template'),
+    path('branches/<slug:slug>/extract-firewalls/', views.extract_firewalls_data, name='extract_firewalls_bulk'),
+
     # # Telecom-Access Related
     # path('telecom-access/', views.all_telecom_access, name='all_telecom_access'),
     # path('branches/<slug:slug>/telecom-access/', views.branch_telecom_access, name='branch_telecom_access'),

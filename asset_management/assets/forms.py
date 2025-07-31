@@ -7,6 +7,7 @@ from django.forms import inlineformset_factory
 from .models import (
     Asset,
     Camera,
+    Firewall,
     ReportableField,
     ReportableModel,
     Screen,
@@ -134,6 +135,7 @@ class CameraEditForm(forms.ModelForm):
         if status == 'In Use' and not location:
             self.add_error('location', "Location is required when status is 'In Use'.")
         return cleaned_data
+    
 from .models import NVR
 
 
@@ -163,6 +165,51 @@ class NVRForm(forms.ModelForm):
 class NVREditForm(forms.ModelForm):
     class Meta:
         model = NVR
+        exclude = ['created_by', 'created_at', 'updated_at']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields['serial_number'].disabled = True
+        self.fields['purchase_date'].disabled = True
+        self.fields['mac_address'].disabled = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        status = cleaned_data.get('status')
+        location = cleaned_data.get('location')
+
+        if status == 'In Use' and not location:
+            self.add_error('location', "Location is required when status is 'In Use'.")
+
+        return cleaned_data
+
+''' Firewalls forms'''
+class FirewallForm(forms.ModelForm):
+    class Meta:
+        model = Firewall
+        exclude = [
+            'created_by', 'created_at', 'updated_at',
+            'branch', 'status', 'location'
+        ]
+        widgets = {
+            'purchase_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    field_order = [
+        'serial_number', 'model', 'firmware_version', 'number_of_ports',
+        'license_expiry', 'ip_address', 'mac_address', 'purchase_date', 'comment'
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['model'].required = True
+        self.fields['serial_number'].required = True
+        
+class FirewallEditForm(forms.ModelForm):
+    class Meta:
+        model = Firewall
         exclude = ['created_by', 'created_at', 'updated_at']
 
     def __init__(self, *args, **kwargs):

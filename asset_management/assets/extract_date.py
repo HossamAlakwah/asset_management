@@ -7,7 +7,7 @@ from django.http import HttpResponse
 from django.templatetags.static import static
 from django.utils.html import escape
 
-from .models import NVR, Asset, Camera, Screen
+from .models import NVR, Asset, Camera, Firewall, Screen
 
 '''
 the generate_assets_report function to handle both HTML and Excel formats
@@ -573,7 +573,8 @@ def generate_cameras_report(request, branch, selected_status, selected_format):
 
 '''
 the generate_NVRs_report function to handle both HTML and Excel formats
-This function generates a report based on the selected branch and status, and returns it in the requested'''
+This function generates a report based on the selected branch and status, and returns it in the requested
+'''
 def generate_nvrs_report(request, branch, selected_status, selected_format):
     if str(branch) == 'All':
         nvrs = NVR.objects.all()
@@ -719,6 +720,166 @@ def generate_nvrs_report(request, branch, selected_status, selected_format):
         response = HttpResponse(html_content, content_type='text/html')
         filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
         response['Content-Disposition'] = f'attachment; filename="{filename_slug}_nvrs_report.html"'
+        return response
+
+    else:
+        messages.error(request, "Unsupported format for extraction.")
+        return None
+
+
+
+'''
+the generate_firewall_report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch and status, and returns it in the requested
+'''
+def generate_firewalls_report(request, branch, selected_status, selected_format):
+    if str(branch) == 'All':
+        firewalls = Firewall.objects.all()
+        if selected_status and selected_status != 'All':
+            firewalls = firewalls.filter(status=selected_status)
+    else:
+        firewalls = Firewall.objects.filter(branch=branch)
+        if selected_status and selected_status != 'All':
+            firewalls = firewalls.filter(status=selected_status)
+
+    if not firewalls.exists():
+        messages.warning(request, 'No data available to extract based on the selected filters.')
+        return None
+
+    headers = [
+        'Model', 'Serial Number', 'Firmware Version', 'Number of Ports',
+        'IP Address', 'MAC Address', 'License Expiry Date',
+        'Location', 'Status', 'Branch'
+    ]
+
+    if selected_format == 'excel':
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet()
+
+        title_format = workbook.add_format({'bold': True, 'font_size': 16, 'align': 'center'})
+        header_format = workbook.add_format({'bold': True, 'bg_color': '#0a6ebd', 'font_color': 'white', 'border': 1})
+
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+        worksheet.merge_range('A1:K1', f'Firewalls Report for {report_branch_name}', title_format)
+        worksheet.write_row(1, 0, headers, header_format)
+
+        for row_num, fw in enumerate(firewalls, start=2):
+            row_data = [
+                fw.model,
+                fw.serial_number,
+                fw.firmware_version or '',
+                fw.number_of_ports or '',
+                fw.ip_address or '',
+                fw.mac_address or '',
+                fw.license_expiry_date or '',
+                fw.location or '',
+                fw.status,
+                fw.branch.name if fw.branch else '',
+            ]
+            worksheet.write_row(row_num, 0, row_data)
+
+        for col_num in range(len(headers)):
+            worksheet.set_column(col_num, col_num, 20)
+
+        workbook.close()
+        output.seek(0)
+
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_firewalls_report.xlsx"'
+        return response
+
+    elif selected_format == 'html':
+        static_logo_url = request.build_absolute_uri(static('MLIT.png'))
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+
+        html_content = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Firewalls Report - {escape(report_branch_name)}</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                    background-color: #f4f4f4;
+                }}
+                .logo {{
+                    width: 150px;
+                    float: right;
+                }}
+                h1 {{
+                    text-align: center;
+                    color: #333;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    background-color: #fff;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                th, td {{
+                    padding: 12px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #0a6ebd;
+                    color: white;
+                }}
+                tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                .highlight-damage {{ background-color: #fdd; font-weight: bold; }}
+                .footer {{
+                    margin-top: 30px;
+                    text-align: center;
+                    color: #666;
+                    font-size: 0.9em;
+                }}
+            </style>
+        </head>
+        <body>
+            <img src="{static_logo_url}" class="logo" />
+            <h1>Firewalls Report for {escape(report_branch_name)}</h1>
+            <table>
+                <thead>
+                    <tr>
+        '''
+        for header in headers:
+            html_content += f'<th>{escape(header)}</th>'
+        html_content += '</tr></thead><tbody>'
+
+        for fw in firewalls:
+            status_class = "highlight-damage" if fw.status == "Damage" else ""
+            html_content += f'''
+            <tr class="{status_class}">
+                <td>{escape(fw.model)}</td>
+                <td>{escape(fw.serial_number)}</td>
+                <td>{escape(fw.firmware_version or "-")}</td>
+                <td>{escape(fw.number_of_ports or "-")}</td>
+                <td>{escape(fw.ip_address or "-")}</td>
+                <td>{escape(fw.mac_address or "-")}</td>
+                <td>{escape(fw.license_expiry_date or "-")}</td>
+                <td>{escape(fw.location or "-")}</td>
+                <td>{escape(fw.status)}</td>
+                <td>{escape(fw.branch.name) if fw.branch else "-"}</td>
+            </tr>
+            '''
+
+        html_content += '''
+                </tbody>
+            </table>
+            <div class="footer">Generated by MLTI Asset Management System</div>
+        </body>
+        </html>
+        '''
+
+        response = HttpResponse(html_content, content_type='text/html')
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_firewalls_report.html"'
         return response
 
     else:

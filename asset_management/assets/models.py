@@ -423,7 +423,20 @@ class NVRLog(InfraAssetLogBase):
     def __str__(self):
         return f"Log for NVR {self.nvr.serial_number} on {self.change_time.strftime('%Y-%m-%d %H:%M')}"
 
-    
+''' Firewall part '''
+class Firewall(InfraAsset):
+    firmware_version = models.CharField(max_length=255, blank=True, null=True)
+    number_of_ports = models.IntegerField(blank=True, null=True)
+    license_expiry = models.DateField(blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.model} - {self.serial_number}"
+
+class FirewallLog(InfraAssetLogBase):
+    firewall = models.ForeignKey(Firewall, on_delete=models.CASCADE, related_name='logs')
+
+    def __str__(self):
+        return f"Log for {self.firewall.serial_number} on {self.change_time.strftime('%Y-%m-%d %H:%M')}"        
 # '''
 # Telecom Access table to store information about telecom access devices
 # access control devices ( ZK Access Control Devices )

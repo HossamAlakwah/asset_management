@@ -4,7 +4,7 @@ import pandas as pd
 from django.contrib import messages
 from django.db import transaction
 
-from .models import NVR, Asset, Branch, Camera, Employee, StorageDevice
+from .models import NVR, Asset, Branch, Camera, Employee, Firewall, StorageDevice
 
 '''
 
@@ -458,5 +458,104 @@ def upload_bulk_nvrs(request, excel_file, branch, slug, user):
         messages.error(request, "Uploaded Excel file is empty.")
     except Exception as e:
         messages.error(request, f"Unexpected error during NVR upload: {e}")
+
+    return False
+
+
+'''
+upload bulk NFirewalls functions
+'''
+def upload_bulk_firewalls(request, excel_file, branch, slug, user):
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+        expected_columns = [
+            'Model', 'Serial Number', 'Firmware Version', 'Number of Ports',
+            'IP Address', 'MAC Address', 'License Expiry Date'
+        ]
+
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns: {', '.join(missing)}")
+            return False
+
+        try:
+            stock_branch = Branch.objects.get(slug='stock')
+        except Branch.DoesNotExist:
+            messages.error(request, "Branch with slug='stock' not found.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    model = row['Model']
+                    serial = row['Serial Number']
+                    firmware = row.get('Firmware Version')
+                    ports = row.get('Number of Ports')
+                    ip = row.get('IP Address')
+                    mac = row.get('MAC Address')
+                    license_expiry = row.get('License Expiry Date')
+
+                    if pd.isna(model) or pd.isna(serial):
+                        errors.append(
+                            f"Row {idx + 2}: Missing required field(s) – "
+                            f"Model: {'✔' if not pd.isna(model) else '✘'}, "
+                            f"Serial: {'✔' if not pd.isna(serial) else '✘'}"
+                        )
+                        continue
+
+                    model = str(model).strip()
+                    serial = str(serial).strip()
+                    firmware = str(firmware).strip() if not pd.isna(firmware) else None
+                    ports = int(ports) if not pd.isna(ports) else None
+                    ip = str(ip).strip() if not pd.isna(ip) else None
+                    mac = str(mac).strip() if not pd.isna(mac) else None
+                    license_expiry = pd.to_datetime(license_expiry).date() if not pd.isna(license_expiry) else None
+
+                    if Firewall.objects.filter(serial_number=serial).exists():
+                        errors.append(f"Skipped duplicate serial {serial}")
+                        skipped += 1
+                        continue
+
+                    firewall = Firewall(
+                        model=model,
+                        serial_number=serial,
+                        firmware_version=firmware,
+                        number_of_ports=ports,
+                        ip_address=ip,
+                        mac_address=mac,
+                        license_expiry_date=license_expiry,
+                        status='Stock',
+                        location='Stock',
+                        branch=stock_branch,
+                        created_by=user
+                    )
+                    firewall._changed_by = user
+                    firewall.save()
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error for Serial '{row.get('Serial Number', 'N/A')}': {e}")
+
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Upload completed with {len(errors)} error(s), {imported} firewalls added, {skipped} skipped.")
+        else:
+            messages.success(request, f"{imported} firewalls successfully imported. {skipped} duplicate serials skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during firewall upload: {e}")
 
     return False

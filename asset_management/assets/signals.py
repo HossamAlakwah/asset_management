@@ -2,7 +2,18 @@ from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from .models import NVR, Asset, AssetLog, Camera, CameraLog, NVRLog, Screen, ScreenLog
+from .models import (
+    NVR,
+    Asset,
+    AssetLog,
+    Camera,
+    CameraLog,
+    Firewall,
+    FirewallLog,
+    NVRLog,
+    Screen,
+    ScreenLog,
+)
 
 '''
 asset management signals
@@ -270,3 +281,51 @@ def log_nvr_delete(sender, instance, **kwargs):
         comment=instance.comment,
         change_time=timezone.now()
     )
+
+''' Signals for firewall logs'''
+@receiver(post_save, sender=Firewall)
+def log_firewall_create(sender, instance, created, **kwargs):
+    if created:
+        FirewallLog.objects.create(
+            firewall=instance,
+            changed_by=getattr(instance, '_changed_by', None),
+            old_status=None,
+            new_status=instance.status,
+            old_location=None,
+            new_location="Stock",
+            old_branch=None,
+            new_branch=instance.branch,
+            comment=instance.comment,
+            change_time=timezone.now()
+        )
+
+
+@receiver(pre_save, sender=Firewall)
+def log_firewall_update(sender, instance, **kwargs):
+    if not instance.pk:
+        return  # New object, handled in post_save
+
+    try:
+        old = Firewall.objects.get(pk=instance.pk)
+    except Firewall.DoesNotExist:
+        return
+
+    changed = (
+        old.status != instance.status or
+        old.location != instance.location or
+        old.branch != instance.branch
+    )
+
+    if changed:
+        FirewallLog.objects.create(
+            firewall=instance,
+            changed_by=getattr(instance, '_changed_by', None),
+            old_status=old.status,
+            new_status=instance.status,
+            old_location=old.location,
+            new_location=instance.location,
+            old_branch=old.branch,
+            new_branch=instance.branch,
+            comment=instance.comment,
+            change_time=timezone.now()
+        )

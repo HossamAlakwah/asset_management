@@ -5,8 +5,14 @@ from django.http import HttpResponse
 from openpyxl.styles import PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from .models import NVR  # Make sure NVR is imported
-from .models import Asset, Camera, Screen, StorageDevice
+from .models import (  # Make sure NVR is imported
+    NVR,
+    Asset,
+    Camera,
+    Firewall,
+    Screen,
+    StorageDevice,
+)
 
 '''
 Generate asset template
@@ -170,4 +176,43 @@ def generate_nvr_template():
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = 'attachment; filename=infra_nvr_template.xlsx'
+    return response
+
+
+''' Generate Firewall template
+This function creates an Excel template for bulk firewalls upload with predefined headers'''
+
+def generate_firewall_template():
+    wb = openpyxl.Workbook()
+
+    # ========== FIREWALL SHEET ==========
+    ws_fw = wb.active
+    ws_fw.title = "Firewall Upload"
+    fw_headers = [
+        'Model', 'Serial Number', 'Firmware Version', 'Number of Ports',
+        'IP Address', 'MAC Address', 'License Expiry Date', 'Purchase Date'
+    ]
+    ws_fw.append(fw_headers)
+
+    # Mark required fields in red: Model, Serial Number
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col_letter in ['A', 'B']:
+        ws_fw[f"{col_letter}1"].fill = red_fill
+
+    # Optional: Dropdown for status (if needed in the future)
+    fw_status_choices = [choice[0] for choice in Firewall.STATUS_CHOICES]
+    dv_status = DataValidation(type="list", formula1=f'"{",".join(fw_status_choices)}"', allow_blank=False)
+    ws_fw.add_data_validation(dv_status)
+    dv_status.add("I2:I100")  # I column = Status (not used here, but for future-proofing)
+
+    # ========== RETURN FILE ==========
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=infra_firewall_template.xlsx'
     return response

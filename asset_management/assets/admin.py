@@ -10,6 +10,8 @@ from .models import (
     Camera,
     CameraLog,
     Employee,
+    Firewall,
+    FirewallLog,
     NVRLog,
     Screen,
     ScreenLog,
@@ -134,6 +136,24 @@ class NVRLogAdmin(admin.ModelAdmin):
     search_fields = ('nvr__serial_number', 'nvr__model', 'changed_by__username')
     def get_readonly_fields(self, request, obj=None):
         return [f.name for f in self.model._meta.fields]
+    
+    
+'''
+Firewalls part
+'''
+@admin.register(Firewall)
+class FirewallAdmin(admin.ModelAdmin):
+    list_display = ('serial_number', 'model', 'firmware_version', 'number_of_ports', 'status', 'branch', 'created_by', 'created_at')
+    search_fields = ('serial_number', 'model', 'ip_address', 'mac_address')
+    list_filter = ('status', 'branch', 'created_by')
+    readonly_fields = ('created_at', 'updated_at')
+
+@admin.register(FirewallLog)
+class FirewallLogAdmin(admin.ModelAdmin):
+    list_display = ('firewall', 'old_status', 'new_status', 'change_time', 'changed_by')
+    search_fields = ('firewall__serial_number',)
+    list_filter = ('new_status', 'changed_by', 'change_time')
+    
 '''
 Dynamic Reports 
 '''
