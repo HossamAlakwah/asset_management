@@ -323,8 +323,107 @@ class ScreenLog(models.Model):
         return f"Log for {self.screen.serial} at {self.change_time.strftime('%Y-%m-%d %H:%M')}"
 
 
+'''
+Base model for Infra items
+'''
+class InfraAsset(models.Model):
+    STATUS_CHOICES = [
+        ('Stock', 'Stock'),
+        ('In Use', 'In Use'),
+        ('Damage', 'Damage'),
+    ]
 
+    model = models.CharField(max_length=100)
+    serial_number = models.CharField("Serial Number", max_length=100, unique=True)
+    location = models.CharField(max_length=200, blank=True, null=True)
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    mac_address = models.CharField(max_length=100, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Stock')
+    purchase_date = models.DateField(blank=True, null=True)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+            User,
+            on_delete=models.SET_NULL,
+            null=True,
+            blank=True,  
+            related_name="%(class)s_created",
+        )    
+    updated_at = models.DateTimeField(auto_now=True)
+    comment = models.TextField(blank=True, null=True)
+    class Meta:
+        abstract = True 
+'''
+Base log model for Infra items
+'''
 
+class InfraAssetLogBase(models.Model):
+    old_status = models.CharField(max_length=20, blank=True, null=True)
+    new_status = models.CharField(max_length=20)
+
+    old_location = models.CharField(max_length=200, blank=True, null=True)
+    new_location = models.CharField(max_length=200)
+
+    old_branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='%(class)s_old_branch')
+    new_branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='%(class)s_new_branch')
+
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=False)
+    change_time = models.DateTimeField(default=timezone.now)
+
+    comment = models.TextField(blank=True, null=True)
+
+    class Meta:
+        abstract = True
+        ordering = ['-change_time']
+
+'''
+Cameras model ( inheritng the base for INFRA )
+'''
+
+class Camera(InfraAsset):
+    power_source = models.CharField(max_length=100)
+
+    class Meta:
+        verbose_name = "Camera"
+        verbose_name_plural = "Cameras"
+        
+        
+''' Cameras log model  ( inheritng the base for INFRA logs ) '''
+class CameraLog(InfraAssetLogBase):
+    camera = models.ForeignKey('Camera', on_delete=models.CASCADE, related_name='logs')
+
+    class Meta:
+        verbose_name = 'Camera Log'
+        verbose_name_plural = 'Camera Logs'
+
+    def __str__(self):
+        return f"Log for Camera {self.camera.serial_number} on {self.change_time.strftime('%Y-%m-%d %H:%M')}"
+    
+    
+'''
+NVR model ( inhereting the base INFRA )
+'''
+class NVR(InfraAsset):
+    hdd_capacity = models.CharField(max_length=50)  
+    number_of_ports = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = "NVR"
+        verbose_name_plural = "NVRs"   
+'''
+NVR log model ( inhereting the base INFRA log )
+'''      
+class NVRLog(InfraAssetLogBase):
+    nvr = models.ForeignKey('NVR', on_delete=models.CASCADE, related_name='logs')
+
+    class Meta:
+        verbose_name = 'NVR Log'
+        verbose_name_plural = 'NVR Logs'
+
+    def __str__(self):
+        return f"Log for NVR {self.nvr.serial_number} on {self.change_time.strftime('%Y-%m-%d %H:%M')}"
+
+    
 # '''
 # Telecom Access table to store information about telecom access devices
 # access control devices ( ZK Access Control Devices )

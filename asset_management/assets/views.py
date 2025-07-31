@@ -20,12 +20,23 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .download_templates import generate_asset_template, generate_screen_template
-from .extract_date import generate_assets_report, generate_screens_report
+from .download_templates import (
+    generate_asset_template,
+    generate_camera_template,
+    generate_screen_template,
+)
+from .extract_date import (
+    generate_assets_report,
+    generate_cameras_report,
+    generate_screens_report,
+)
 from .models import (
+    NVR,
     Asset,
     AssetLog,
     Branch,
+    Camera,
+    CameraLog,
     Employee,
     ReportableField,
     ReportableModel,
@@ -33,7 +44,12 @@ from .models import (
     ScreenLog,
     StorageDevice,
 )
-from .upload_data import upload_bulk_asset, upload_bulk_employee, upload_bulk_screens
+from .upload_data import (
+    upload_bulk_asset,
+    upload_bulk_cameras,
+    upload_bulk_employee,
+    upload_bulk_screens,
+)
 
 
 def logout_view(request):
@@ -522,7 +538,13 @@ def edit_asset(request, asset_id):
     })
 
 
-from .forms import AssetForm, ScreenForm, StorageDeviceFormSet
+from .forms import (
+    AssetForm,
+    CameraEditForm,
+    CameraForm,
+    ScreenForm,
+    StorageDeviceFormSet,
+)
 
 
 @login_required
@@ -869,3 +891,196 @@ def unassign_screen(request, screen_id, employee_id):
         messages.error(request, f"Error while unassigning screen: {e}")
 
     return redirect('edit_employee', employee_id=employee_id)
+
+
+'''Infra part'''
+
+def infrastructure_assets_view(request):
+
+    return render(request, 'infra/infra.html')
+
+'''Cameras part'''
+
+@login_required
+def all_cameras(request):
+    unique_asset_types = list(
+        Camera.objects.order_by('status').values_list('status', flat=True).distinct()
+    )
+    cameras = Camera.objects.all().order_by('id')
+    all_count = cameras.count()
+    stock_count = cameras.filter(status='Stock').count()
+    in_use_count = cameras.filter(status='In Use').count()
+    damage_count = cameras.filter(status='Damage').count()
+
+    context = {
+        'cameras': cameras,
+        'all': all_count,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        "unique_asset_types":unique_asset_types,
+    }
+
+    return render(request, 'infra/cameras/cameras_all.html', context)
+
+@login_required
+def branch_cameras(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    cameras = Camera.objects.filter(branch=branch)
+
+    total = cameras.count()
+    stock_count = cameras.filter(status='Stock').count()
+    in_use_count = cameras.filter(status='In Use').count()
+    damage_count = cameras.filter(status='Damage').count()
+
+    context = {
+        'branch': branch,
+        'cameras': cameras,
+        'all': total,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        'current_branch_slug': slug,
+    }
+
+    return render(request, 'infra/cameras/cameras_branch.html', context)
+
+@xframe_options_exempt
+def camera_details(request, camera_id):
+    camera = get_object_or_404(Camera, pk=camera_id)
+    print(camera)
+    return render(request, 'infra/cameras/camera_details.html', {'camera': camera})
+
+def edit_camera(request, camera_id):
+    camera = get_object_or_404(Camera, pk=camera_id)
+
+    stock_branch = Branch.objects.filter(name__iexact='stock').first()
+    choosable_branches = Branch.objects.filter(choosable=True)
+
+    if request.method == 'POST':
+        form = CameraEditForm(request.POST, instance=camera)
+
+        if form.is_valid():
+            camera = form.save(commit=False)
+            status = form.cleaned_data.get('status')
+
+            # Force branch to stock if not In Use
+            if status != 'In Use':
+                camera.branch = stock_branch
+                camera.location='stock'
+            else:
+                # Ensure user selected a valid choosable branch
+                branch = form.cleaned_data.get('branch')
+                if branch and branch.choosable:
+                    camera.branch = branch
+                else:
+                    messages.error(request, "Please select a valid branch.")
+                    return render(request, 'infra/cameras/camera_edit.html', {
+                        'form': form,
+                        'camera': camera,
+                        'choosable_branches': choosable_branches,
+                        'stock_branch': stock_branch,
+                        'status': status,
+                    })
+
+            # Clear location if status changed from Stock to In Use
+            if camera.status == 'Stock' and status == 'In Use':
+                camera.location = None  # will be required via form validation
+
+            camera._changed_by = request.user
+            camera.save()
+
+            return redirect('camera_details', camera_id=camera.id)
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = CameraEditForm(instance=camera)
+
+    return render(request, 'infra/cameras/camera_edit.html', {
+        'form': form,
+        'camera': camera,
+        'choosable_branches': choosable_branches,
+        'stock_branch': stock_branch,
+        'status': camera.status,
+    })
+
+
+def add_camera(request):
+    if request.method == 'POST':
+        form = CameraForm(request.POST)
+        if form.is_valid():
+            camera = form.save(commit=False)
+            camera.created_by = request.user
+            camera.status = 'Stock'
+            camera.branch = Branch.objects.get(name__iexact='stock')
+            camera._changed_by = request.user
+            camera.save()
+
+            messages.success(request, 'Camera added successfully.')
+            return redirect('all_cameras')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = CameraForm()
+
+    return render(request, 'infra/cameras/camera_create.html', {
+        'form': form,
+    })
+    
+    
+    
+@login_required
+def all_cameras_log(request, slug):
+    if slug == 'All':
+        logs = CameraLog.objects.all().order_by('-change_time')
+        branch = None
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        camera_ids = Camera.objects.filter(branch=branch).values_list('id', flat=True)
+        logs = CameraLog.objects.filter(camera_id__in=camera_ids).order_by('-change_time')
+
+    return render(request, 'infra/cameras/camera_logs.html', {
+        'logs': logs,
+        'branch': branch,
+        'current_branch_slug': slug,
+    })
+    
+@require_POST 
+@login_required
+def upload_cameras(request, slug):
+    print(slug)
+    branch = get_object_or_404(Branch, slug=slug)
+    if 'excel_file' in request.FILES:
+        excel_file = request.FILES['excel_file']
+
+        success = upload_bulk_cameras(request, excel_file, branch, slug, request.user)
+
+        if not success:
+            if slug!='stock':
+                return redirect('branch_assets', slug=slug)
+            else:
+                return redirect('all_cameras')
+
+    else:
+        messages.error(request, "No Excel file was uploaded.")
+
+    if slug!='stock':
+        return redirect('branch_assets', slug=slug)
+    else:
+        return redirect('all_cameras')
+
+@login_required
+def download_cameras_template(request):
+    return generate_camera_template()
+
+'''
+Extract cameras data
+This view allows users to extract screen data based on selected status and format.
+'''
+@login_required
+def extract_cameras_data(request, slug):
+    branch = get_object_or_404(Branch, slug=slug) if slug != 'All' else 'All'
+    selected_status = request.POST.get('status')
+    selected_format = request.POST.get('format')
+    
+    return generate_cameras_report(request, branch, selected_status, selected_format)

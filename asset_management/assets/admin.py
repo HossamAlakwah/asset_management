@@ -1,8 +1,19 @@
 from django.contrib import admin
 
-from assets.forms import ReportableFieldAdminForm
+from assets.forms import CameraForm, NVRForm, ReportableFieldAdminForm
 
-from .models import Asset, AssetLog, Branch, Employee
+from .models import (
+    NVR,
+    Asset,
+    AssetLog,
+    Branch,
+    Camera,
+    CameraLog,
+    Employee,
+    NVRLog,
+    Screen,
+    ScreenLog,
+)
 
 
 @admin.register(Branch)
@@ -53,6 +64,76 @@ class AssetLogAdmin(admin.ModelAdmin):
     list_select_related = ('asset', 'changed_by', 'branch', 'old_employee', 'new_employee')
     readonly_fields = ('change_time',)
 
+'''
+Screens and pc-screens
+'''
+
+
+@admin.register(Screen)
+class ScreenAdmin(admin.ModelAdmin):
+    list_display = ['product', 'serial', 'status', 'brand', 'employee', 'branch', 'created_at']
+    list_filter = ['status', 'product', 'brand', 'branch']
+    search_fields = ['serial', 'brand', 'employee__name']
+    readonly_fields = ['created_at', 'updated_at', 'created_by']
+
+@admin.register(ScreenLog)
+class ScreenLogAdmin(admin.ModelAdmin):
+    list_display = ['screen', 'new_status', 'old_employee', 'new_employee', 'branch', 'change_time']
+    list_filter = ['new_status', 'branch']
+    search_fields = ['screen__serial']
+    
+    
+@admin.register(Camera)
+class CameraAdmin(admin.ModelAdmin):
+    list_display = (
+        'model', 'serial_number', 'status',
+        'location', 'ip_address', 'mac_address',
+        'branch', 'purchase_date','branch'
+    )
+    list_filter = ('status', 'branch', 'power_source')
+    search_fields = ('serial_number', 'model', 'ip_address', 'mac_address')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+
+
+@admin.register(CameraLog)
+class CameraLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'camera', 'changed_by', 'change_time',
+        'old_status', 'new_status',
+        'old_location', 'new_location',
+        'old_branch', 'new_branch'
+    )
+    list_filter = ('new_status', 'new_branch', 'change_time')
+    search_fields = ('camera__serial_number', 'camera__model', 'changed_by__username')
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields]
+
+
+@admin.register(NVR)
+class NVRAdmin(admin.ModelAdmin):
+    list_display = (
+        'model', 'serial_number', 'status',
+        'hdd_capacity', 'number_of_ports',
+        'location', 'branch', 'purchase_date'
+    )
+    list_filter = ('status', 'branch')
+    search_fields = ('serial_number', 'model')
+    readonly_fields = ('created_at', 'updated_at')
+
+@admin.register(NVRLog)
+class NVRLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'nvr', 'changed_by', 'change_time',
+        'old_status', 'new_status',
+        'old_location', 'new_location',
+        'old_branch', 'new_branch'
+    )
+    list_filter = ('new_status', 'new_branch', 'change_time')
+    search_fields = ('nvr__serial_number', 'nvr__model', 'changed_by__username')
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields]
 '''
 Dynamic Reports 
 '''

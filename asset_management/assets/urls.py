@@ -44,7 +44,20 @@ urlpatterns = [
     path('branches/<slug:slug>/extract-screens/', views.extract_screens_data, name='extract_screens_bulk'),
     path('screens/template/download/', views.download_screens_template, name='download_screens_template'),
 
-    
+    #Infra
+    path('infra/', views.infrastructure_assets_view, name='infrastructure'),
+
+    #Cameras part
+    path('cameras/', views.all_cameras, name='all_cameras'),
+    path('cameras/add/', views.add_camera, name='add_camera'),
+    path('cameras/<int:camera_id>/', views.camera_details, name='camera_details'),
+    path('cameras/<slug:slug>/', views.branch_cameras, name='branch_cameras'),
+    path('cameras/<int:camera_id>/edit/', views.edit_camera, name='edit_camera'),
+    path('logs/cameras/<slug:slug>/', views.all_cameras_log, name='all_cameras_log'),
+    path('branches/<slug:slug>/upload-cameras/', views.upload_cameras, name='upload_cameras'),
+    path('cameras/template/download/', views.download_cameras_template, name='download_cameras_template'),
+    path('branches/<slug:slug>/extract-cameras/', views.extract_cameras_data, name='extract_cameras_bulk'),
+
     # # Telecom-Access Related
     # path('telecom-access/', views.all_telecom_access, name='all_telecom_access'),
     # path('branches/<slug:slug>/telecom-access/', views.branch_telecom_access, name='branch_telecom_access'),

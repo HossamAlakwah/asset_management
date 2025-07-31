@@ -5,7 +5,7 @@ from django.http import HttpResponse
 from openpyxl.styles import PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from .models import Asset, Screen, StorageDevice
+from .models import NVR, Asset, Camera, Screen, StorageDevice
 
 '''
 Generate asset template
@@ -92,4 +92,42 @@ def generate_screen_template():
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = 'attachment; filename=screen_template.xlsx'
+    return response
+
+''' Generate camera template
+This function creates an Excel template for bulk NVRs upload with predefined headers'''
+def generate_camera_template():
+    wb = openpyxl.Workbook()
+
+    # ==================== CAMERA SHEET ====================
+    ws_cam = wb.active
+    ws_cam.title = "Camera Upload"
+    camera_headers = [
+        'Model', 'Serial Number', 'Power Source', 
+        'IP Address', 'MAC Address','Purchase Date'
+    ]
+    ws_cam.append(camera_headers)
+
+    # Required: Model, Serial Number, Power Source
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col_letter in ['A', 'B', 'C']:
+        ws_cam[f"{col_letter}1"].fill = red_fill
+
+    # Dropdown for Status
+    camera_status_choices = [c[0] for c in Camera.STATUS_CHOICES]
+    dv_status_cam = DataValidation(type="list", formula1=f'"{",".join(camera_status_choices)}"', allow_blank=False)
+    ws_cam.add_data_validation(dv_status_cam)
+    dv_status_cam.add("G2:G100")
+
+
+    # ==================== RETURN FILE ====================
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=infra_camera_template.xlsx'
     return response

@@ -2,7 +2,7 @@ from django.db.models.signals import post_save, pre_delete, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from .models import Asset, AssetLog, Screen, ScreenLog
+from .models import Asset, AssetLog, Camera, CameraLog, Screen, ScreenLog
 
 '''
 asset management signals
@@ -132,5 +132,76 @@ def log_screen_delete(sender, instance, **kwargs):
         old_employee=instance.employee,
         new_employee=None,
         branch=instance.branch,
+        change_time=timezone.now()
+    )
+
+
+''' Camera management signals
+These signals are used to log changes to cameras, such as creation, updates, and deletions
+'''
+
+
+@receiver(post_save, sender=Camera)
+def log_camera_create(sender, instance, created, **kwargs):
+    if not created:
+        return  # Only handle new camera creation here
+
+    CameraLog.objects.create(
+        camera=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=None,
+        new_status=instance.status,
+        old_location=None,
+        new_location="stock",
+        old_branch=None,
+        new_branch=instance.branch,
+        comment=instance.comment,
+        change_time=timezone.now()
+    )
+
+
+@receiver(pre_save, sender=Camera)
+def log_camera_update(sender, instance, **kwargs):
+    if not instance.pk:
+        return  # Creation will be handled in post_save
+
+    try:
+        old = Camera.objects.get(pk=instance.pk)
+    except Camera.DoesNotExist:
+        return
+
+    changed = (
+        old.status != instance.status or
+        old.location != instance.location or
+        old.branch != instance.branch
+    )
+
+    if changed:
+        CameraLog.objects.create(
+            camera=instance,
+            changed_by=getattr(instance, '_changed_by', None),
+            old_status=old.status,
+            new_status=instance.status,
+            old_location=old.location,
+            new_location=instance.location,
+            old_branch=old.branch,
+            new_branch=instance.branch,
+            comment=instance.comment,
+            change_time=timezone.now()
+        )
+
+
+@receiver(pre_delete, sender=Camera)
+def log_camera_delete(sender, instance, **kwargs):
+    CameraLog.objects.create(
+        camera=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=instance.status,
+        new_status='Deleted',
+        old_location=instance.location,
+        new_location='Deleted',
+        old_branch=instance.branch,
+        new_branch=None,
+        comment=instance.comment,
         change_time=timezone.now()
     )

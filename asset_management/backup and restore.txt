@@ -1,5 +1,5 @@
 back table data
-pg_dump -U postgres -d assets -t assets_asset --data-only -f employee_data_only.sql
+pg_dump -U postgres -d assets -t assets_screen --data-only -f employee_data_only.sql
 
 
 restore it

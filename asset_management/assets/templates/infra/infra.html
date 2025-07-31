@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ALL - Assets</title>
+    <link rel="stylesheet" href="{% static 'css/branches.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.7.2/css/all.css">
+</head>
+<body>
+    <div class="header">
+        <h1 class="head-office-title">Infrastructure</h1>
+    </div>
+
+<div class="branch-container card-container">
+        <a href="{% url 'logout' %}" class="logout-btn">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+
+        <div class="equipment-buttons">
+            <div class="equipment-row">
+                <a href="{% url 'all_cameras' %}" class="equipment-btn branch-card">
+                    <i class="fa-solid fa-video" style="font-size:60px;"></i>
+                    <h3>Cameras</h3>
+                    <br>
+                    <p>View and manage Camera</p>
+                </a>
+            </div>
+            <div class="equipment-row">
+                <a href="{% url 'all_assets' %}" class="equipment-btn branch-card">
+                    <i class="fa-solid fa-server" style="font-size:60px;"></i>
+                    <h3>NVRs</h3>
+                    <br>
+                    <p>View and manage NVRs</p>
+                </a>
+            </div>
+        </div>
+
+        <a href="{% url 'branches' %}" class="back-btn">
+            <i class="fas fa-arrow-left"></i> Back to Branches
+        </a>
+    </div>
+            <div class="footer">
+            <p>Asset Management System &copy; 2025 | All rights reserved</p>
+            <p><strong>Powered by Hossam Alakwah</strong></p>
+
+        </div>
+</body>
+</html>

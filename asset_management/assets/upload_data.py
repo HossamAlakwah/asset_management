@@ -4,7 +4,7 @@ import pandas as pd
 from django.contrib import messages
 from django.db import transaction
 
-from .models import Asset, Branch, Employee, StorageDevice
+from .models import Asset, Branch, Camera, Employee, StorageDevice
 
 '''
 
@@ -255,5 +255,104 @@ def upload_bulk_screens(request, excel_file, branch, slug, user):
         messages.error(request, "Uploaded Excel file is empty.")
     except Exception as e:
         messages.error(request, f"Unexpected error during screen upload: {e}")
+
+    return False
+
+
+
+'''
+upload buld camera functions
+'''
+def upload_bulk_cameras(request, excel_file, branch, slug, user):
+    # === 1. Validate file ===
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+        expected_columns = ['Model', 'Serial Number', 'Power Source', 'IP Address', 'MAC Address', 'Purchase Date']
+
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns: {', '.join(missing)}")
+            return False
+
+        try:
+            stock_branch = Branch.objects.get(slug='stock')
+        except Branch.DoesNotExist:
+            messages.error(request, "Branch with slug='stock' not found.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    model = row['Model']
+                    serial = row['Serial Number']
+                    power = row['Power Source']
+                    ip = row.get('IP Address')
+                    mac = row.get('MAC Address')
+                    purchase = row.get('Purchase Date')
+
+                    # Check required fields
+                    if pd.isna(model) or pd.isna(serial) or pd.isna(power):
+                        errors.append(
+                            f"Row {idx + 2}: Missing required field(s) – "
+                            f"Model: {'✔' if not pd.isna(model) else '✘'}, "
+                            f"Serial: {'✔' if not pd.isna(serial) else '✘'}, "
+                            f"Power Source: {'✔' if not pd.isna(power) else '✘'}"
+                        )
+                        continue
+
+                    # Normalize input
+                    model = str(model).strip()
+                    serial = str(serial).strip()
+                    power = str(power).strip()
+                    ip = str(ip).strip() if not pd.isna(ip) else None
+                    mac = str(mac).strip() if not pd.isna(mac) else None
+                    purchase = pd.to_datetime(purchase).date() if not pd.isna(purchase) else None
+
+                    if Camera.objects.filter(serial_number=serial).exists():
+                        errors.append(f"Skipped duplicate serial {serial}")
+                        skipped += 1
+                        continue
+
+                    camera = Camera.objects.create(
+                        model=model,
+                        serial_number=serial,
+                        power_source=power,
+                        ip_address=ip,
+                        mac_address=mac,
+                        status='Stock',
+                        location='Stock',
+                        purchase_date=purchase,
+                        branch=stock_branch,
+                        created_by=user
+                    )
+                    camera._changed_by = user
+                    camera.save()
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error for Serial '{row.get('Serial Number', 'N/A')}': {e}")
+
+        # Final messages
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Upload completed with {len(errors)} error(s), {imported} cameras added, {skipped} skipped.")
+        else:
+            messages.success(request, f"{imported} cameras successfully imported. {skipped} duplicate serials skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during camera upload: {e}")
 
     return False

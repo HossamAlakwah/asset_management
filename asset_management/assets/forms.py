@@ -4,7 +4,14 @@ from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 
-from .models import Asset, ReportableField, ReportableModel, Screen, StorageDevice
+from .models import (
+    Asset,
+    Camera,
+    ReportableField,
+    ReportableModel,
+    Screen,
+    StorageDevice,
+)
 
 
 class ReportableFieldAdminForm(forms.ModelForm):
@@ -36,9 +43,7 @@ class ReportableFieldAdminForm(forms.ModelForm):
             except Exception as e:
                 raise ValidationError(f"Error loading model fields: {e}")
 
-from django import forms
 
-from .models import Asset, Screen
 
 
 class AssetForm(forms.ModelForm):
@@ -75,7 +80,77 @@ class ScreenForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Explicitly mark which fields are required or not (optional)
         self.fields['product'].required = True
         self.fields['serial'].required = True
         self.fields['brand'].required = True
+
+
+
+'''
+
+Cameras form
+
+'''
+class CameraForm(forms.ModelForm):
+    class Meta:
+        model = Camera
+        exclude = [
+            'created_by', 'created_at', 'updated_at', 
+            'branch', 'status', 'location'
+        ]
+        widgets = {
+            'purchase_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+    field_order = ['serial_number', 'model', 'power_source', 'ip_address', 'mac_address',  'purchase_date','comment']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['model'].required = True
+        self.fields['serial_number'].required = True
+        self.fields['power_source'].required = True
+
+
+
+class CameraEditForm(forms.ModelForm):
+    class Meta:
+        model = Camera
+        exclude = ['created_by', 'created_at', 'updated_at']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields['serial_number'].disabled = True
+        self.fields['purchase_date'].disabled = True
+        self.fields['mac_address'].disabled = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+        print("Cleaned data:", cleaned_data)  # Add this
+
+        status = cleaned_data.get('status')
+        location = cleaned_data.get('location')
+        print(location)
+        print(status)
+        if status == 'In Use' and not location:
+            self.add_error('location', "Location is required when status is 'In Use'.")
+        return cleaned_data
+from .models import NVR
+
+
+class NVRForm(forms.ModelForm):
+    class Meta:
+        model = NVR
+        exclude = [
+            'created_by', 'created_at', 'updated_at', 
+            'branch', 'status', 'comment'
+        ]
+        widgets = {
+            'purchase_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['model'].required = True
+        self.fields['serial_number'].required = True
+        self.fields['hdd_capacity'].required = True
+        self.fields['number_of_ports'].required = True
