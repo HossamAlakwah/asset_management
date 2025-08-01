@@ -19,7 +19,7 @@ class CustomUser(AbstractUser):
         return self.role in ['admin', 'superadmin']
     
     def is_superadmin(self):
-        return self.role == 'superadmin'
+        return self.role == 'super_admin'
 
     def get_full_name(self):
         full_name = f"{self.first_name} {self.last_name}".strip()

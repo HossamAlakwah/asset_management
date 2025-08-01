@@ -968,12 +968,11 @@ def camera_details(request, camera_id):
 
 def edit_camera(request, camera_id):
     camera = get_object_or_404(Camera, pk=camera_id)
-    slug=request.slug
     stock_branch = Branch.objects.filter(name__iexact='stock').first()
     choosable_branches = Branch.objects.filter(choosable=True)
 
     if request.method == 'POST':
-        form = CameraEditForm(request.POST, instance=camera)
+        form = CameraEditForm(request.POST, instance=camera, user=request.user)
 
         if form.is_valid():
             camera = form.save(commit=False)
@@ -1009,7 +1008,8 @@ def edit_camera(request, camera_id):
         else:
             messages.error(request, "Please correct the errors below.")
     else:
-        form = CameraEditForm(instance=camera)
+        print(request.user)
+        form = CameraEditForm(instance=camera, user=request.user)
 
     return render(request, 'infra/cameras/camera_edit.html', {
         'form': form,

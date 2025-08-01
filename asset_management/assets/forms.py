@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 
 from .models import (
+    NVR,
     Asset,
     Camera,
     Firewall,
@@ -86,7 +87,6 @@ class ScreenForm(forms.ModelForm):
         self.fields['brand'].required = True
 
 
-
 '''
 
 Cameras form
@@ -110,19 +110,20 @@ class CameraForm(forms.ModelForm):
         self.fields['serial_number'].required = True
         self.fields['power_source'].required = True
 
-
-
 class CameraEditForm(forms.ModelForm):
     class Meta:
         model = Camera
         exclude = ['created_by', 'created_at', 'updated_at']
-
     def __init__(self, *args, **kwargs):
+        # Pop user from kwargs (make sure you pass it from the view)
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
 
-        self.fields['serial_number'].disabled = True
-        self.fields['purchase_date'].disabled = True
-        self.fields['mac_address'].disabled = True
+        # Disable fields only for non-superadmins
+        if not (user and hasattr(user, 'is_superadmin') and user.is_superadmin()):
+            self.fields['serial_number'].disabled = True
+            self.fields['purchase_date'].disabled = True
+            self.fields['mac_address'].disabled = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -130,15 +131,15 @@ class CameraEditForm(forms.ModelForm):
 
         status = cleaned_data.get('status')
         location = cleaned_data.get('location')
-        print(location)
         print(status)
         if status == 'In Use' and not location:
             self.add_error('location', "Location is required when status is 'In Use'.")
         return cleaned_data
-    
-from .models import NVR
+'''
 
+NVR form
 
+'''
 class NVRForm(forms.ModelForm):
     class Meta:
         model = NVR
