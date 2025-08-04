@@ -18,6 +18,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_POST
 
 from .download_templates import (
@@ -26,6 +27,8 @@ from .download_templates import (
     generate_firewall_template,
     generate_nvr_template,
     generate_screen_template,
+    generate_switch_template,
+    generate_telephone_template,
 )
 from .extract_date import (
     generate_assets_report,
@@ -33,6 +36,8 @@ from .extract_date import (
     generate_firewalls_report,
     generate_nvrs_report,
     generate_screens_report,
+    generate_switches_report,
+    generate_telephones_report,
 )
 from .forms import (
     AssetForm,
@@ -44,6 +49,9 @@ from .forms import (
     NVRForm,
     ScreenForm,
     StorageDeviceFormSet,
+    SwitchEditForm,
+    SwitchForm,
+    TelephoneForm,
 )
 from .models import (
     NVR,
@@ -61,6 +69,10 @@ from .models import (
     Screen,
     ScreenLog,
     StorageDevice,
+    Switch,
+    SwitchLog,
+    Telephone,
+    TelephoneLog,
 )
 from .upload_data import (
     upload_bulk_asset,
@@ -69,6 +81,8 @@ from .upload_data import (
     upload_bulk_firewalls,
     upload_bulk_nvrs,
     upload_bulk_screens,
+    upload_bulk_switches,
+    upload_bulk_telephones,
 )
 
 
@@ -110,6 +124,11 @@ This view allows users to create a new employee and assign an asset if available
 
 '''
 def employees_view(request):
+    unique_departments = list(
+        Employee.objects.values_list('department', flat=True).distinct()
+    )
+    print(unique_departments)
+    print('---------')
     if request.method == 'POST':
         name = request.POST.get('name')
         department = request.POST.get('department')
@@ -141,6 +160,7 @@ def employees_view(request):
     return render(request, 'employees/employees.html', {
         'employees': employees,
         'assets': assets,
+        'unique_departments':unique_departments
     })
 
 @login_required
@@ -204,6 +224,7 @@ def edit_employee(request, employee_id):
     employee = get_object_or_404(Employee, id=employee_id)
     assets = Asset.objects.filter(status='Stock').exclude(employee_name__isnull=False)
     screens = Screen.objects.filter(status='Stock').exclude(employee__isnull=False)
+    telephones = Telephone.objects.filter(status='Stock').exclude(employee__isnull=False)
     branches = Branch.objects.filter(choosable=True)
 
     if request.method == 'POST':
@@ -214,6 +235,7 @@ def edit_employee(request, employee_id):
         branch_id = request.POST.get('branch')
         assigned_asset_id = request.POST.get('assigned_asset')
         assigned_screen_id = request.POST.get('assigned_screen')  # New
+        assigned_telephone_id = request.POST.get('assigned_telephone')
 
         if not all([name, department, title, email]):
             messages.error(request, "All fields are required.")
@@ -249,6 +271,14 @@ def edit_employee(request, employee_id):
                     screen._changed_by = request.user
                     screen.save()
 
+                if assigned_telephone_id:
+                    telephone = Telephone.objects.get(pk=assigned_telephone_id)
+                    telephone.employee = employee
+                    telephone.status = 'In Use'
+                    telephone.branch = employee.branch
+                    telephone._changed_by = request.user
+                    telephone.updated_at = timezone.now()
+                    telephone.save()
                 messages.success(request, f"Employee '{employee.name}' updated successfully.")
                 return redirect('edit_employee', employee_id=employee.id)
 
@@ -258,7 +288,8 @@ def edit_employee(request, employee_id):
     return render(request, 'employees/edit_employee.html', {
         'employee': employee,
         'assets': assets,
-        'screens': screens,  
+        'screens': screens,
+        'telephones':telephones,
         'branches': branches,
         # 'assigned_screens': assigned_screens,
     })
@@ -907,6 +938,240 @@ def unassign_screen(request, screen_id, employee_id):
 
     return redirect('edit_employee', employee_id=employee_id)
 
+'''
+Telephones part
+'''
+
+'''
+Telephones view
+This view displays all Telephones and their statuses
+'''
+@login_required
+def all_telephones(request):
+    telephones = Telephone.objects.select_related('employee', 'branch')
+    print(telephones)
+    all_count = telephones.count()
+    telephone_total = telephones.count()
+    unique_asset_types = list(
+        telephones.order_by('status').values_list('status', flat=True).distinct()
+    )
+    print(unique_asset_types)
+    stock_count = telephones.filter(status='Stock').count()
+    in_use_count = telephones.filter(status='In Use').count()
+    damage_count = telephones.filter(status='Damage').count()
+    
+    context = {
+        'branch': None,
+        'telephones': telephones,
+        'all': all_count,
+        'telephone_total': telephone_total,
+        "unique_asset_types": unique_asset_types,
+        "stock_count": stock_count,
+        "in_use_count": in_use_count,
+        "damage_count": damage_count,
+    }
+    return render(request, 'telephones/telephones_all.html', context)
+
+'''
+Create telephone view
+This view allows users to create a new telephone
+'''
+@login_required
+def create_telephone(request):
+    if request.method == 'POST':
+        form = TelephoneForm(request.POST)
+        if form.is_valid():
+            telephones = form.save(commit=False)
+            telephones.created_by = request.user
+            telephones._changed_by = request.user  # ✅ for signal
+            telephones.status = 'Stock'
+            telephones.branch = Branch.objects.get(slug='stock')
+            telephones.save()
+            messages.success(request, f"Telephone {telephones.serial} created successfully.")
+            return redirect('all_telephones')
+        else:
+            messages.error(request, "Please correct the form errors.")
+    else:
+        form = TelephoneForm()
+
+    return render(request, 'telephones/telephones_create.html', {
+        'form': form
+    })
+
+
+'''edit telephone view
+This view allows users to edit an existing telephone'''
+
+@login_required
+def edit_telephone(request, telephone_id):
+    telephone = get_object_or_404(Telephone, pk=telephone_id)
+    employees = Employee.objects.all()
+    branches = Branch.objects.filter(choosable=True)
+
+    if request.method == 'POST':
+        
+        product = request.POST.get('product')
+        serial = request.POST.get('serial')
+        brand = request.POST.get('brand')
+        status = request.POST.get('status')
+        employee_id = request.POST.get('employee')
+        branch_id = request.POST.get('branch')
+
+        employee = Employee.objects.filter(pk=employee_id).first() if employee_id else None
+        branch = Branch.objects.filter(pk=branch_id).first() if branch_id else None
+
+        # 🧠 Create a "preview" version of telephone with POST data
+        telephone_preview = Telephone(
+            id=telephone.id,  # preserve pk
+            product=telephone.product,
+            serial=telephone.serial,
+            brand=brand,
+            status=status,
+            employee=employee,
+            branch=branch or telephone.branch,
+            created_at=telephone.created_at,
+            updated_at=telephone.updated_at,
+        )
+        print(telephone_preview)
+        context = {
+            'telephone': telephone_preview,
+            'employees': employees,
+            'branches': branches,
+            'telephone_status_choices': Telephone.STATUS_CHOICES,
+        }
+
+        # ✅ VALIDATION LOGIC
+        if status == 'In Use':
+            if not employee:
+                messages.error(request, "Employee is required when status is 'In Use'.")
+                return render(request, 'telephones/telephones_edit.html', context)
+            if branch and branch.name.lower() == 'stock':
+                messages.error(request, "Branch must not be 'stock' when status is 'In Use'.")
+                return render(request, 'telephones/telephones_edit.html', context)
+
+        elif status in ['Stock', 'Damage']:
+            if employee:
+                messages.error(request, "Employee must be empty when status is 'Stock' or 'Damage'.")
+                return render(request, 'telephones/telephones_edit.html', context)
+            if not branch or branch.name.lower() != 'stock':
+                messages.error(request, "Branch must be 'stock' when status is 'Stock' or 'Damage'.")
+                return render(request, 'telephones/telephones_edit.html', context)
+
+        # ✅ Save to DB
+        telephone.product = product
+        telephone.serial = serial
+        telephone.brand = brand
+        telephone.status = status
+        telephone.employee = employee if status == 'In Use' else None
+        telephone.branch = employee.branch if employee and status == 'In Use' else branch
+        telephone.updated_at = timezone.now()
+        telephone._changed_by = request.user
+        telephone.save()
+
+        messages.success(request, f"Telephone {serial} updated.")
+        return redirect('all_telephones')
+
+    return render(request, 'telephones/telephones_edit.html', {
+        'telephone': telephone,
+        'employees': employees,
+        'branches': branches,
+        'telephone_status_choices': Telephone.STATUS_CHOICES,
+    })
+
+
+
+'''
+Telephone logs view
+This view displays logs related to telephone changes for a specific branch or all branches.
+'''
+@login_required
+def all_telephone_log(request, slug):
+    if slug == 'All':
+        logs = TelephoneLog.objects.all().order_by('-change_time')
+        branch = None
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        telephone_ids = Screen.objects.filter(branch=branch).values_list('id', flat=True)
+        logs = TelephoneLog.objects.filter(telephone_id__in=telephone_ids).order_by('-change_time')
+
+    return render(request, 'telephones/telephones_logs.html', {
+        'logs': logs,
+        'branch': branch,
+        'current_branch_slug': slug,
+    })
+'''
+branch telephones view
+This view displays all telephones for a specific branch, including their statuses and types.
+'''
+@login_required
+def branch_telephones(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    telephones = Telephone.objects.filter(branch=branch)
+
+    total = telephones.count()
+
+
+    return render(request, 'telephones/branch_telephones.html', {
+        'telephones': telephones,
+        'total': total,
+        'current_branch_slug': slug,
+    })
+
+'''
+Extract telephones data
+This view allows users to extract screen data based on selected status and format.
+'''
+@login_required
+def extract_telephones_data(request, slug):
+    branch = get_object_or_404(Branch, slug=slug) if slug != 'All' else 'All'
+    selected_status = request.POST.get('status')
+    selected_format = request.POST.get('format')
+    
+    return generate_telephones_report(request, branch, selected_status, selected_format)
+
+@login_required
+def download_telephones_template(request):
+    return generate_telephone_template()
+
+@require_POST
+@login_required
+def upload_telephones(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    if 'excel_file' not in request.FILES:
+        messages.error(request, "No file uploaded.")
+        return redirect('all_telephones')
+
+    excel_file = request.FILES['excel_file']
+    success = upload_bulk_telephones(request, excel_file, branch, slug, request.user)
+    if not success:
+        messages.error(request, "Request failed, please try again")
+        return redirect('all_telephones')
+
+
+    return redirect('all_telephones')
+
+
+def telephone_details(request, telephone_id):
+    telephone = get_object_or_404(Telephone, pk=telephone_id)
+    print(telephone)
+    return render(request, 'telephones/telephones_details.html', {'telephone': telephone})
+
+''' unsign telephone from employee
+This view allows users to unassign a telephone from an employee and return it to stock.'''
+@require_POST
+@login_required
+def unassign_telephone(request, telephone_id, employee_id):
+    telephone = get_object_or_404(Telephone, id=telephone_id, employee__id=employee_id)
+    stock_branch = Branch.objects.get(name__iexact='Stock')
+
+    telephone.employee = None
+    telephone.status = 'Stock'
+    telephone.branch = stock_branch
+    telephone.updated_at = timezone.now()
+    telephone.save()
+
+    messages.success(request, f"Screen '{telephone.serial}' unassigned successfully.")
+    return redirect('edit_employee', employee_id=employee_id)
 
 '''Infra part'''
 
@@ -1439,3 +1704,170 @@ def extract_firewalls_data(request, slug):
     selected_status = request.POST.get('status')
     selected_format = request.POST.get('format')
     return generate_firewalls_report(request, branch, selected_status, selected_format)
+
+''''
+Switch part
+'''
+#list all switchs
+@login_required
+def all_switches(request):
+    switches = Switch.objects.all().order_by('id')
+    all_count = switches.count()
+    
+    stock_count = switches.filter(status='Stock').count()
+    in_use_count = switches.filter(status='In Use').count()
+    damage_count = switches.filter(status='Damage').count()
+    unique_switch_types = list(
+        switches.order_by('status').values_list('status', flat=True).distinct()
+    )
+    return render(request, 'infra/switches/switch_all.html', {
+        'switches': switches,
+        'all': all_count,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        "unique_switch_types":unique_switch_types,
+    })
+
+#list switch by branch
+@login_required
+def branch_switches(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    switches = Switch.objects.filter(branch=branch)
+
+    return render(request, 'infra/switches/switches_branch.html', {
+        'branch': branch,
+        'switches': switches,
+        'all': switches.count(),
+        'stock_count': switches.filter(status='Stock').count(),
+        'in_use_count': switches.filter(status='In Use').count(),
+        'damage_count': switches.filter(status='Damage').count(),
+        'current_branch_slug': slug,
+    })
+
+#switch details
+@xframe_options_exempt
+def switch_details(request, switch_id):
+    switch = get_object_or_404(Switch, pk=switch_id)
+    return render(request, 'infra/switches/switch_details.html', {'switch': switch})
+
+#add switch
+@login_required
+def create_switch(request):
+    if request.method == 'POST':
+        form = SwitchForm(request.POST)
+        if form.is_valid():
+            switch = form.save(commit=False)
+            switch.created_by = request.user
+            switch.status = 'Stock'
+            switch.branch = Branch.objects.get(name__iexact='stock')
+            switch.location = 'stock'
+            switch._changed_by = request.user
+            switch.save()
+
+            messages.success(request, 'Switch added successfully.')
+            return redirect('all_switches')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = SwitchForm()
+
+    return render(request, 'infra/switches/switch_create.html', {
+        'form': form,
+    })
+
+#edit switch
+@login_required
+def edit_switch(request, switch_id):
+    switch = get_object_or_404(Switch, pk=switch_id)
+    stock_branch = Branch.objects.filter(name__iexact='stock').first()
+    choosable_branches = Branch.objects.filter(choosable=True)
+
+    if request.method == 'POST':
+        form = SwitchEditForm(request.POST, instance=switch, user=request.user)
+        if form.is_valid():
+            switch = form.save(commit=False)
+            status = form.cleaned_data.get('status')
+
+            if status != 'In Use':
+                switch.branch = stock_branch
+                switch.location = 'stock'
+            else:
+                branch = form.cleaned_data.get('branch')
+                if branch and branch.choosable:
+                    switch.branch = branch
+                else:
+                    messages.error(request, "Please select a valid branch.")
+                    return render(request, 'infra/switches/switch_edit.html', {
+                        'form': form,
+                        'switch': switch,
+                        'choosable_branches': choosable_branches,
+                        'stock_branch': stock_branch,
+                        'status': status,
+                    })
+
+            if switch.status == 'Stock' and status == 'In Use':
+                switch.location = None
+
+            switch._changed_by = request.user
+            switch.save()
+            return redirect('all_switches')
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = SwitchEditForm(instance=switch, user=request.user)
+
+    return render(request, 'infra/switches/switch_edit.html', {
+        'form': form,
+        'switch': switch,
+        'choosable_branches': choosable_branches,
+        'stock_branch': stock_branch,
+        'status': switch.status,
+    })
+
+#switch logs
+@login_required
+def all_switch_log(request, slug):
+    if slug == 'All':
+        logs = SwitchLog.objects.all().order_by('-change_time')
+        branch = None
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        switch_ids = Switch.objects.filter(branch=branch).values_list('id', flat=True)
+        logs = SwitchLog.objects.filter(switch_id__in=switch_ids).order_by('-change_time')
+
+    return render(request, 'infra/switches/switch_logs.html', {
+        'logs': logs,
+        'branch': branch,
+        'current_branch_slug': slug,
+    })
+    
+#upload switches
+@require_POST
+@login_required
+def upload_switches(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    if 'excel_file' in request.FILES:
+        excel_file = request.FILES['excel_file']
+        success = upload_bulk_switches(request, excel_file, branch, slug, request.user)
+
+        if not success:
+            return redirect('branch_switches', slug=slug) if slug != 'stock' else redirect('all_switches')
+    else:
+        messages.error(request, "No Excel file was uploaded.")
+
+    return redirect('branch_switches', slug=slug) if slug != 'stock' else redirect('all_switches')
+
+#download switch template
+@login_required
+def download_switches_template(request):
+    return generate_switch_template()
+
+
+#Extract switches data
+@login_required
+def extract_switches_data(request, slug):
+    branch = get_object_or_404(Branch, slug=slug) if slug != 'All' else 'All'
+    selected_status = request.POST.get('status')
+    selected_format = request.POST.get('format')
+    return generate_switches_report(request, branch, selected_status, selected_format)

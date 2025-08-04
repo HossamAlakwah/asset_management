@@ -12,6 +12,8 @@ from .models import (  # Make sure NVR is imported
     Firewall,
     Screen,
     StorageDevice,
+    Switch,
+    Telephone,
 )
 
 '''
@@ -99,6 +101,35 @@ def generate_screen_template():
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = 'attachment; filename=screen_template.xlsx'
+    return response
+
+'''
+Generate telephone template
+This function creates an Excel template for bulk telephone upload with predefined headers and drop-down
+'''
+def generate_telephone_template():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Telephones Upload"
+
+    headers = ['Product', 'Serial','Brand']
+    ws.append(headers)
+
+    # Highlight required fields
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col in ['A', 'B','C']:
+        ws[f"{col}1"].fill = red_fill
+
+    # Return file
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=telephone_template.xlsx'
     return response
 
 ''' Generate camera template
@@ -215,4 +246,47 @@ def generate_firewall_template():
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = 'attachment; filename=infra_firewall_template.xlsx'
+    return response
+
+'''
+Generate switch template
+This function creates an Excel template for bulk switch upload with predefined headers and drop-downs.
+'''
+def generate_switch_template():
+    wb = openpyxl.Workbook()
+
+    # ==================== SWITCH SHEET ====================
+    ws_switch = wb.active
+    ws_switch.title = "Switch Upload"
+
+    switch_headers = [
+        'Model', 'Serial Number', 'Number of Ports', 'Number of POE Ports',
+        'IP Address', 'MAC Address', 'Purchase Date'
+    ]
+    ws_switch.append(switch_headers)
+
+    # Highlight required fields: Model, Serial Number, Number of Ports, Number of POE Ports
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col_letter in ['A', 'B', 'C', 'D']:
+        ws_switch[f"{col_letter}1"].fill = red_fill
+
+    # Integer-only for Number of Ports (C) and POE Ports (D)
+    dv_integer_ports = DataValidation(type="whole", operator="greaterThanOrEqual", formula1="0", allow_blank=False)
+    ws_switch.add_data_validation(dv_integer_ports)
+    dv_integer_ports.add("C2:C100")
+
+    dv_integer_poe = DataValidation(type="whole", operator="greaterThanOrEqual", formula1="0", allow_blank=False)
+    ws_switch.add_data_validation(dv_integer_poe)
+    dv_integer_poe.add("D2:D100")
+
+    # ========== RETURN FILE ==========
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=infra_switch_template.xlsx'
     return response

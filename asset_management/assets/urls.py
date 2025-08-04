@@ -44,6 +44,19 @@ urlpatterns = [
     path('branches/<slug:slug>/extract-screens/', views.extract_screens_data, name='extract_screens_bulk'),
     path('screens/template/download/', views.download_screens_template, name='download_screens_template'),
 
+    #telephone-related
+    path('telephones/', views.all_telephones, name='all_telephones'),
+    path('telephones/add/', views.create_telephone, name='create_telephone'),
+    path('telephones/<int:telephone_id>/', views.telephone_details, name='telephone_details'),
+    path('telephones/<int:telephone_id>/edit/', views.edit_telephone, name='edit_telephone'),
+    path('telephones/unassign/<int:telephone_id>/<int:employee_id>/', views.unassign_telephone, name='unassign_telephone'),
+    path('branches/<slug:slug>/telephones/', views.branch_telephones, name='branch_telephones'),
+    path('logs/telephones/<slug:slug>/', views.all_telephone_log, name='all_telephones_log'),
+
+    path('branches/<slug:slug>/upload-telephones/', views.upload_telephones, name='upload_telephones'),
+    path('branches/<slug:slug>/extract-telephones/', views.extract_telephones_data, name='extract_telephones_bulk'),
+    path('telephones/template/download/', views.download_telephones_template, name='download_telephones_template'),
+    
     #Infra
     path('infra/', views.infrastructure_assets_view, name='infrastructure'),
 
@@ -79,6 +92,19 @@ urlpatterns = [
     path('branches/<slug:slug>/upload-firewalls/', views.upload_firewalls, name='upload_firewalls'),
     path('firewalls/template/download/', views.download_firewalls_template, name='download_firewalls_template'),
     path('branches/<slug:slug>/extract-firewalls/', views.extract_firewalls_data, name='extract_firewalls_bulk'),
+
+    # switch part 
+    # SWITCH ROUTES
+
+path('switches/', views.all_switches, name='all_switches'),
+path('switches/add/', views.create_switch, name='create_switch'),
+path('switches/<int:switch_id>/', views.switch_details, name='switch_details'),
+path('switches/<int:switch_id>/edit/', views.edit_switch, name='edit_switch'),
+path('branches/<slug:slug>/switches/', views.branch_switches, name='branch_switches'),
+path('logs/switches/<slug:slug>/', views.all_switch_log, name='all_switch_log'),
+path('branches/<slug:slug>/upload-switches/', views.upload_switches, name='upload_switches'),
+path('branches/<slug:slug>/extract-switches/', views.extract_switches_data, name='extract_switches_bulk'),
+path('switches/template/download/', views.download_switches_template, name='download_switches_template'),
 
     # # Telecom-Access Related
     # path('telecom-access/', views.all_telecom_access, name='all_telecom_access'),

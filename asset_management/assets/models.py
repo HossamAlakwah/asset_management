@@ -3,7 +3,6 @@ from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
 from django.utils.text import slugify
-
 from users.models import CustomUser as User
 
 '''
@@ -324,6 +323,82 @@ class ScreenLog(models.Model):
 
 
 '''
+
+telephones table to store information about telephones.
+telephones, printers, and screen-PCs will be stored in this table.
+log will be created for each screen change.
+
+'''
+class Telephone(models.Model):
+
+    STATUS_CHOICES = [
+        ('In Use', 'In Use'),
+        ('Damage', 'Damage'),
+        ('Stock', 'Stock'),
+    ]
+
+    product = models.CharField(max_length=50,blank=False, null=False)
+    serial = models.CharField(max_length=100, unique=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    brand= models.CharField(max_length=50, blank=False, null=False)
+    employee = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=False, related_name='created_telephones')
+
+
+    def save(self, *args, **kwargs):
+        if self.employee and self.employee.branch:
+            self.branch = self.employee.branch
+        super().save(*args, **kwargs)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Telephone'
+        verbose_name_plural = 'Telephone'
+
+    def __str__(self):
+        return f"{self.product} - {self.serial}"
+
+
+class TelephoneLog(models.Model):
+    telephone = models.ForeignKey(Telephone, on_delete=models.CASCADE, related_name='logs')
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=False)
+
+    old_status = models.CharField(max_length=20, blank=True, null=True)
+    new_status = models.CharField(max_length=20)
+
+    old_employee = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='telephone_old_employee_logs'
+    )
+    new_employee = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='telephone_new_employee_logs'
+    )
+
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
+    change_time = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-change_time']
+        verbose_name = 'telephone Log'
+        verbose_name_plural = 'telephone Logs'
+
+    def __str__(self):
+        return f"Log for {self.telephone.serial} at {self.change_time.strftime('%Y-%m-%d %H:%M')}"
+
+    
+'''
 Base model for Infra items
 '''
 class InfraAsset(models.Model):
@@ -336,7 +411,7 @@ class InfraAsset(models.Model):
     model = models.CharField(max_length=100)
     serial_number = models.CharField("Serial Number", max_length=100, unique=True)
     location = models.CharField(max_length=200, blank=True, null=True)
-    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    ip_address = models.GenericIPAddressField(protocol='both', unpack_ipv4=False, null=True, blank=True)
     mac_address = models.CharField(max_length=100, blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Stock')
     purchase_date = models.DateField(blank=True, null=True)
@@ -437,6 +512,31 @@ class FirewallLog(InfraAssetLogBase):
 
     def __str__(self):
         return f"Log for {self.firewall.serial_number} on {self.change_time.strftime('%Y-%m-%d %H:%M')}"        
+'''
+Switch part 
+'''
+class Switch(InfraAsset):
+    number_of_ports = models.PositiveIntegerField()
+    number_of_poe_ports = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = "Switch"
+        verbose_name_plural = "Switches"
+
+'''
+switch log model
+'''
+class SwitchLog(InfraAssetLogBase):
+    switch = models.ForeignKey('Switch', on_delete=models.CASCADE, related_name='logs')
+
+    class Meta:
+        verbose_name = 'Switch Log'
+        verbose_name_plural = 'Switch Logs'
+
+    def __str__(self):
+        return f"Log for Switch {self.switch.serial_number} on {self.change_time.strftime('%Y-%m-%d %H:%M')}"
+
+
 # '''
 # Telecom Access table to store information about telecom access devices
 # access control devices ( ZK Access Control Devices )

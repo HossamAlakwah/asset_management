@@ -4,7 +4,16 @@ import pandas as pd
 from django.contrib import messages
 from django.db import transaction
 
-from .models import NVR, Asset, Branch, Camera, Employee, Firewall, StorageDevice
+from .models import (
+    NVR,
+    Asset,
+    Branch,
+    Camera,
+    Employee,
+    Firewall,
+    StorageDevice,
+    Telephone,
+)
 
 '''
 
@@ -259,6 +268,96 @@ def upload_bulk_screens(request, excel_file, branch, slug, user):
     return False
 
 
+'''
+
+Telephones upload
+
+'''
+def upload_bulk_telephones(request, excel_file, branch, slug, user):
+
+
+    # === 1. Validate file ===
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+        expected_columns = ['Product', 'Serial','Brand']
+
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns: {', '.join(missing)}")
+            return False
+
+        try:
+            branch = Branch.objects.get(slug='stock')
+        except Branch.DoesNotExist:
+            messages.error(request, "Branch with slug='stock' not found.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    product = row['Product']
+                    serial = row['Serial']
+                    brand = row['Brand']
+
+                    if pd.isna(product) or pd.isna(serial) or pd.isna(brand):
+                        errors.append(
+                            f"Row {idx + 2}: Missing required field(s) – "
+                            f"Product: {'✔' if not pd.isna(product) else '✘'}, "
+                            f"Serial: {'✔' if not pd.isna(serial) else '✘'}, "
+                            f"Brand: {'✔' if not pd.isna(brand) else '✘'}"
+                        )
+                        continue
+
+                    # Convert to string after validation
+                    product = str(product).strip()
+                    serial = str(serial).strip()
+                    brand = str(brand).strip()
+
+                    if Telephone.objects.filter(serial=serial).exists():
+                        errors.append(f"Skipped duplicate serial"+ serial)
+                        skipped += 1
+                        continue
+
+                    telephone = Telephone(
+                        product=product,
+                        serial=serial,
+                        brand=brand,
+                        status='Stock',
+                        employee=None,
+                        branch=branch,
+                        created_by=user
+                    )
+                    telephone._changed_by = user
+                    telephone.save()
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error for Serial '{row.get('Serial', 'N/A')}': {e}")
+
+        # Final feedback
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Upload completed with {len(errors)} error(s), {imported} telephones added, {skipped} skipped.")
+        else:
+            messages.success(request, f"{imported} telephones successfully imported. {skipped} duplicate serials skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during telephone upload: {e}")
+
+    return False
 
 '''
 upload bulk camera functions
@@ -557,5 +656,108 @@ def upload_bulk_firewalls(request, excel_file, branch, slug, user):
         messages.error(request, "Uploaded Excel file is empty.")
     except Exception as e:
         messages.error(request, f"Unexpected error during firewall upload: {e}")
+
+    return False
+
+'''
+upload bulk switch function
+'''
+def upload_bulk_switches(request, excel_file, branch, slug, user):
+    import pandas as pd
+    from django.db import transaction
+
+    from .models import Branch, Switch
+
+    # === 1. Validate file ===
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+        expected_columns = [
+            'Model', 'Serial Number', 'Number of Ports',
+            'Number of POE Ports', 'IP Address', 'MAC Address', 'Purchase Date'
+        ]
+
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns: {', '.join(missing)}")
+            return False
+
+        try:
+            branch = Branch.objects.get(slug='stock')
+        except Branch.DoesNotExist:
+            messages.error(request, "Branch with slug='stock' not found.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    model = row['Model']
+                    serial = row['Serial Number']
+                    num_ports = row['Number of Ports']
+                    num_poe_ports = row['Number of POE Ports']
+                    ip = row.get('IP Address')
+                    mac = row.get('MAC Address')
+                    purchase_date = row.get('Purchase Date')
+
+                    # Required field check
+                    if pd.isna(model) or pd.isna(serial) or pd.isna(num_ports) or pd.isna(num_poe_ports):
+                        errors.append(
+                            f"Row {idx + 2}: Missing required field(s) – "
+                            f"Model: {'✔' if not pd.isna(model) else '✘'}, "
+                            f"Serial: {'✔' if not pd.isna(serial) else '✘'}, "
+                            f"Number of Ports: {'✔' if not pd.isna(num_ports) else '✘'}, "
+                            f"POE Ports: {'✔' if not pd.isna(num_poe_ports) else '✘'}"
+                        )
+                        continue
+
+                    serial = str(serial).strip()
+
+                    if Switch.objects.filter(serial_number=serial).exists():
+                        errors.append(f"Skipped duplicate serial: {serial}")
+                        skipped += 1
+                        continue
+
+                    switch = Switch(
+                        model=str(model).strip(),
+                        serial_number=serial,
+                        number_of_ports=int(num_ports),
+                        number_of_poe_ports=int(num_poe_ports),
+                        ip_address=str(ip).strip() if pd.notna(ip) else None,
+                        mac_address=str(mac).strip() if pd.notna(mac) else None,
+                        purchase_date=purchase_date if pd.notna(purchase_date) else None,
+                        branch=branch,
+                        status='Stock',
+                        location='stock',
+                        created_by=user,
+                        comment=None
+                    )
+                    switch._changed_by = user
+                    switch.save()
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error for Serial '{row.get('Serial Number', 'N/A')}': {e}")
+
+        # Final feedback
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Upload completed with {len(errors)} error(s), {imported} switches added, {skipped} skipped.")
+        else:
+            messages.success(request, f"{imported} switches successfully imported. {skipped} duplicate serials skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during switch upload: {e}")
 
     return False

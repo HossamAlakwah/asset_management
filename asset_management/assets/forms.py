@@ -13,6 +13,8 @@ from .models import (
     ReportableModel,
     Screen,
     StorageDevice,
+    Switch,
+    Telephone,
 )
 
 
@@ -85,7 +87,24 @@ class ScreenForm(forms.ModelForm):
         self.fields['product'].required = True
         self.fields['serial'].required = True
         self.fields['brand'].required = True
+'''
+Telephone form
+'''
+class TelephoneForm(forms.ModelForm):
+    class Meta:
+        model = Telephone
+        exclude = ['employee','created_by', 'created_at', 'updated_at', 'branch','status']
+        widgets = {
+            'warranty': forms.DateInput(attrs={'type': 'date'}),
+        }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields['product'].required = True
+        self.fields['serial'].required = True
+        self.fields['brand'].required = True
+        
 
 '''
 
@@ -135,6 +154,7 @@ class CameraEditForm(forms.ModelForm):
         if status == 'In Use' and not location:
             self.add_error('location', "Location is required when status is 'In Use'.")
         return cleaned_data
+    
 '''
 
 NVR form
@@ -219,6 +239,77 @@ class FirewallEditForm(forms.ModelForm):
         self.fields['serial_number'].disabled = True
         self.fields['purchase_date'].disabled = True
         # self.fields['mac_address'].disabled = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        status = cleaned_data.get('status')
+        location = cleaned_data.get('location')
+
+        if status == 'In Use' and not location:
+            self.add_error('location', "Location is required when status is 'In Use'.")
+
+        return cleaned_data
+    
+'''
+Switch Forms
+'''
+
+
+class SwitchForm(forms.ModelForm):
+    class Meta:
+        model = Switch
+        exclude = [
+            'created_by', 'created_at', 'updated_at',
+            'branch', 'status', 'location'
+        ]
+        widgets = {
+            'purchase_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    field_order = [
+        'serial_number', 'model', 'number_of_ports', 'number_of_poe_ports',
+        'ip_address', 'mac_address', 'purchase_date', 'comment'
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['model'].required = True
+        self.fields['serial_number'].required = True
+        self.fields['number_of_ports'].required = True
+        self.fields['number_of_poe_ports'].required = True
+
+class SwitchEditForm(forms.ModelForm):
+    ip_address = forms.GenericIPAddressField(
+        required=False,
+        widget=forms.TextInput(attrs={
+            'placeholder': 'e.g. 192.168.0.1',
+            'class': 'form-control',
+        })
+    )
+    purchase_date = forms.DateField(
+        input_formats=['%d-%m-%Y'],
+        required=False,
+        widget=forms.DateInput(
+            attrs={'placeholder': 'DD-MM-YYYY', 'class': 'form-control'}
+        )
+    )
+    class Meta:
+        model = Switch
+        exclude = ['created_by', 'created_at', 'updated_at']
+        field_order = [
+        'serial_number', 'model', 'number_of_ports', 'number_of_poe_ports',
+        'ip_address', 'mac_address', 'purchase_date', 'comment'
+    ]
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        # Disable fields only for non-superadmins
+        if not (user and hasattr(user, 'is_superadmin') and user.is_superadmin()):
+            self.fields['serial_number'].disabled = True
+            self.fields['purchase_date'].disabled = True
+            self.fields['mac_address'].disabled = True
 
     def clean(self):
         cleaned_data = super().clean()

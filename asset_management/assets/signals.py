@@ -13,6 +13,10 @@ from .models import (
     NVRLog,
     Screen,
     ScreenLog,
+    Switch,
+    SwitchLog,
+    Telephone,
+    TelephoneLog,
 )
 
 '''
@@ -146,6 +150,66 @@ def log_screen_delete(sender, instance, **kwargs):
         change_time=timezone.now()
     )
 
+'''Telephone management signals
+These signals are used to log changes to telephones, such as creation, updates, and deletions
+'''
+@receiver(post_save, sender=Telephone)
+def log_telephone_create(sender, instance, created, **kwargs):
+    if not created:
+        return
+
+    TelephoneLog.objects.create(
+        telephone=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=None,
+        new_status=instance.status,
+        old_employee=instance.employee,
+        new_employee=instance.employee,
+        branch=instance.branch,
+        change_time=timezone.now()
+    )
+
+@receiver(pre_save, sender=Telephone)
+def log_telephone_update(sender, instance, **kwargs):
+    if not instance.pk:
+        return  # Let post_save handle creation
+
+    try:
+        old = Telephone.objects.get(pk=instance.pk)
+    except Telephone.DoesNotExist:
+        return
+
+    changed = (
+        old.status != instance.status or
+        old.employee != instance.employee or
+        old.branch != instance.branch
+    )
+
+    if changed:
+        TelephoneLog.objects.create(
+            telephone=instance,
+            changed_by=getattr(instance, '_changed_by', None),
+            old_status=old.status,
+            new_status=instance.status,
+            old_employee=old.employee,
+            new_employee=instance.employee,
+            branch=instance.branch,
+            change_time=timezone.now()
+        )
+
+@receiver(pre_delete, sender=Telephone)
+def log_telephone_delete(sender, instance, **kwargs):
+    TelephoneLog.objects.create(
+        telephone=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=instance.status,
+        new_status='Deleted',
+        old_employee=instance.employee,
+        new_employee=None,
+        branch=instance.branch,
+        change_time=timezone.now()
+    )
+
 
 ''' Camera management signals
 These signals are used to log changes to cameras, such as creation, updates, and deletions
@@ -217,6 +281,10 @@ def log_camera_delete(sender, instance, **kwargs):
         change_time=timezone.now()
     )
 
+''' NVR management signals
+These signals are used to log changes to NVRs, such as creation, updates, and deletions
+'''
+
 @receiver(post_save, sender=NVR)
 def log_nvr_create(sender, instance, created, **kwargs):
     if not created:
@@ -282,7 +350,9 @@ def log_nvr_delete(sender, instance, **kwargs):
         change_time=timezone.now()
     )
 
-''' Signals for firewall logs'''
+''' Firewall management signals
+These signals are used to log changes to Firewalls, such as creation, updates, and deletions
+'''
 @receiver(post_save, sender=Firewall)
 def log_firewall_create(sender, instance, created, **kwargs):
     if created:
@@ -329,3 +399,71 @@ def log_firewall_update(sender, instance, **kwargs):
             comment=instance.comment,
             change_time=timezone.now()
         )
+
+''' Switches management signals
+These signals are used to log changes to Switches, such as creation, updates, and deletions
+'''
+@receiver(post_save, sender=Switch)
+def log_switch_create(sender, instance, created, **kwargs):
+    if not created:
+        return  # Only handle new switch creation here
+
+    SwitchLog.objects.create(
+        switch=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=None,
+        new_status=instance.status,
+        old_location=None,
+        new_location="stock",
+        old_branch=None,
+        new_branch=instance.branch,
+        comment=instance.comment,
+        change_time=timezone.now()
+    )
+
+
+@receiver(pre_save, sender=Switch)
+def log_switch_update(sender, instance, **kwargs):
+    if not instance.pk:
+        return  # Creation will be handled in post_save
+
+    try:
+        old = Switch.objects.get(pk=instance.pk)
+    except Switch.DoesNotExist:
+        return
+
+    changed = (
+        old.status != instance.status or
+        old.location != instance.location or
+        old.branch != instance.branch
+    )
+
+    if changed:
+        SwitchLog.objects.create(
+            switch=instance,
+            changed_by=getattr(instance, '_changed_by', None),
+            old_status=old.status,
+            new_status=instance.status,
+            old_location=old.location,
+            new_location=instance.location,
+            old_branch=old.branch,
+            new_branch=instance.branch,
+            comment=instance.comment,
+            change_time=timezone.now()
+        )
+
+
+@receiver(pre_delete, sender=Switch)
+def log_switch_delete(sender, instance, **kwargs):
+    SwitchLog.objects.create(
+        switch=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=instance.status,
+        new_status='Deleted',
+        old_location=instance.location,
+        new_location='Deleted',
+        old_branch=instance.branch,
+        new_branch=None,
+        comment=instance.comment,
+        change_time=timezone.now()
+    )

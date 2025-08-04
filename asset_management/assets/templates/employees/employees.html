@@ -32,6 +32,16 @@
                 {% endfor %}
             </div>
         {% endif %}
+        <div class="filters" style="margin-bottom: 20px; display: flex; gap: 20px; align-items: center;">
+            <input type="text" id="employeeSearch" class="form-control" placeholder="Search by name...">
+
+            <select id="departmentFilter" class="form-control">
+                <option value="">All Departments</option>
+                            {% for dept in unique_departments %}
+                                <option value="{{ dept }}">{{ dept }}</option>
+                            {% endfor %}
+            </select>
+        </div>
 
         <div class="controls">
             <div class="button-group">
@@ -136,6 +146,30 @@
             document.getElementById(modalId).style.display = "block";
         };
     });
+    document.addEventListener("DOMContentLoaded", function () {
+    const searchInput = document.getElementById("employeeSearch");
+    const departmentFilter = document.getElementById("departmentFilter");
+    const tableRows = document.querySelectorAll("#employeeTable tbody tr");
+
+    function filterEmployees() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const selectedDept = departmentFilter.value.toLowerCase();
+
+        tableRows.forEach(row => {
+            const name = row.children[0].textContent.toLowerCase();
+            const dept = row.children[1].textContent.toLowerCase();
+
+            const matchesName = name.includes(searchTerm);
+            const matchesDept = selectedDept === "" || dept === selectedDept;
+
+            row.style.display = (matchesName && matchesDept) ? "" : "none";
+        });
+    }
+
+    searchInput.addEventListener("input", filterEmployees);
+    departmentFilter.addEventListener("change", filterEmployees);
+});
+
     </script>
 </body>
 </html>

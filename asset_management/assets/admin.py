@@ -1,6 +1,5 @@
-from django.contrib import admin
-
 from assets.forms import CameraForm, NVRForm, ReportableFieldAdminForm
+from django.contrib import admin
 
 from .models import (
     NVR,
@@ -15,6 +14,10 @@ from .models import (
     NVRLog,
     Screen,
     ScreenLog,
+    Switch,
+    SwitchLog,
+    Telephone,
+    TelephoneLog,
 )
 
 
@@ -112,7 +115,31 @@ class CameraLogAdmin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
         return [f.name for f in self.model._meta.fields]
 
+@admin.register(Telephone)
+class TelephoneAdmin(admin.ModelAdmin):
+    list_display = (
+        'product', 'serial', 'status',
+        'brand', 'branch', 'created_at'
+    )
+    list_filter = ('status', 'branch')
+    search_fields = ('serial', 'product', 'brand')
+    readonly_fields = ('created_at', 'updated_at')
 
+
+
+@admin.register(TelephoneLog)
+class TelephoneLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'telephone', 'changed_by', 'change_time',
+        'old_status', 'new_status',
+    )
+    list_filter = ('new_status', 'change_time')
+    search_fields = ('telephone__serial', 'telephone__product', 'changed_by__username')
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields]
+
+    
 @admin.register(NVR)
 class NVRAdmin(admin.ModelAdmin):
     list_display = (
@@ -198,3 +225,19 @@ class ReportableFieldAdminForm(forms.ModelForm):
 @admin.register(ReportableField)
 class ReportableFieldAdmin(admin.ModelAdmin):
     form = ReportableFieldAdminForm
+
+''' 
+switch part 
+'''
+
+
+
+@admin.register(Switch)
+class SwitchAdmin(admin.ModelAdmin):
+    list_display = ('serial_number', 'model', 'status', 'branch')
+    search_fields = ('serial_number', 'model')
+    list_filter = ('status', 'branch')
+
+@admin.register(SwitchLog)
+class SwitchLogAdmin(admin.ModelAdmin):
+    list_display = ('switch', 'old_status', 'new_status', 'change_time', 'changed_by')

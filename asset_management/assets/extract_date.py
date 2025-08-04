@@ -7,7 +7,7 @@ from django.http import HttpResponse
 from django.templatetags.static import static
 from django.utils.html import escape
 
-from .models import NVR, Asset, Camera, Firewall, Screen
+from .models import NVR, Asset, Camera, Firewall, Screen, Switch, Telephone
 
 '''
 the generate_assets_report function to handle both HTML and Excel formats
@@ -413,6 +413,152 @@ def generate_screens_report(request, branch, selected_status, selected_format):
         return None
 
 
+'''
+the generate_telephones_report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch and status, and returns it in the requested'''
+def generate_telephones_report(request, branch, selected_status, selected_format):
+    if str(branch) == 'All':
+        telephones = Telephone.objects.all()
+        if selected_status and selected_status != 'All':
+            telephones = telephones.filter(status=selected_status)
+    else:
+        telephones = Telephone.objects.filter(branch=branch)
+        if selected_status and selected_status != 'All':
+            telephones = telephones.filter(status=selected_status)
+
+    if not telephones.exists():
+        messages.warning(request, 'No data available to extract based on the selected filters.')
+        return None
+
+    headers = [
+        'Product', 'Serial', 'Status', 'Employee', 'Branch'
+    ]
+
+    if selected_format == 'excel':
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet()
+
+        # Styles
+        title_format = workbook.add_format({'bold': True, 'font_size': 16, 'align': 'center'})
+        header_format = workbook.add_format({'bold': True, 'bg_color': '#0a6ebd', 'font_color': 'white', 'border': 1})
+
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+        worksheet.merge_range('A1:E1', f'Telephones Report for {report_branch_name}', title_format)
+        worksheet.write_row(1, 0, headers, header_format)
+
+        for row_num, telephone in enumerate(telephones, start=2):
+            row_data = [
+                telephone.product,
+                telephone.serial,
+                telephone.status,
+                telephone.employee.name if telephone.employee else '',
+                telephone.branch.name if telephone.branch else '',
+            ]
+            worksheet.write_row(row_num, 0, row_data)
+
+        for col_num in range(len(headers)):
+            worksheet.set_column(col_num, col_num, 20)
+
+        workbook.close()
+        output.seek(0)
+
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_telephones_report.xlsx"'
+        return response
+
+    elif selected_format == 'html':
+        static_logo_url = request.build_absolute_uri(static('MLIT.png'))
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+
+        html_content = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Telephones Report - {report_branch_name}</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                    background-color: #f4f4f4;
+                }}
+                .logo {{
+                    width: 150px;
+                    float: right;
+                }}
+                h1 {{
+                    text-align: center;
+                    color: #333;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    background-color: #fff;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                th, td {{
+                    padding: 12px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #0a6ebd;
+                    color: white;
+                }}
+                tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                .highlight-damage {{ background-color: #fdd; font-weight: bold; }}
+                .footer {{
+                    margin-top: 30px;
+                    text-align: center;
+                    color: #666;
+                    font-size: 0.9em;
+                }}
+            </style>
+        </head>
+        <body>
+            <img src="{static_logo_url}" class="logo" />
+            <h1>Telephones Report for {escape(report_branch_name)}</h1>
+            <table>
+                <thead>
+                    <tr>
+        '''
+
+        for header in headers:
+            html_content += f'<th>{escape(header)}</th>'
+        html_content += '</tr></thead><tbody>'
+
+        for telephones in telephones:
+            status_class = "highlight-damage" if telephones.status == "Damage" else ""
+            html_content += f'''
+            <tr class="{status_class}">
+                <td>{escape(telephones.product)}</td>
+                <td>{escape(telephones.serial)}</td>
+                <td>{escape(telephones.status)}</td>
+                <td>{escape(telephones.employee.name) if telephones.employee else '-'}</td>
+                <td>{escape(telephones.branch.name) if telephones.branch else '-'}</td>
+            </tr>
+            '''
+
+        html_content += '''
+                </tbody>
+            </table>
+            <div class="footer">Generated by MLTI Asset Management System</div>
+        </body>
+        </html>
+        '''
+
+        response = HttpResponse(html_content, content_type='text/html')
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_telephones_report.html"'
+        return response
+
+    else:
+        messages.error(request, "Unsupported format for extraction.")
+        return None
 
 '''
 the generate_cameras_report function to handle both HTML and Excel formats
@@ -882,6 +1028,167 @@ def generate_firewalls_report(request, branch, selected_status, selected_format)
         response['Content-Disposition'] = f'attachment; filename="{filename_slug}_firewalls_report.html"'
         return response
 
+    else:
+        messages.error(request, "Unsupported format for extraction.")
+        return None
+
+'''
+the generate_switches_report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch and status, and returns it in the requested format.'''
+
+def generate_switches_report(request, branch, selected_status, selected_format):
+    # === 1. Filter switches based on branch and status ===
+    if str(branch) == 'All':
+        switches = Switch.objects.all()
+        if selected_status and selected_status != 'All':
+            switches = switches.filter(status=selected_status)
+    else:
+        switches = Switch.objects.filter(branch=branch)
+        if selected_status and selected_status != 'All':
+            switches = switches.filter(status=selected_status)
+
+    if not switches.exists():
+        messages.warning(request, 'No data available to extract based on the selected filters.')
+        return None
+
+    headers = [
+        'Model', 'Serial Number', 'Number of Ports', 'Number of POE Ports',
+        'IP Address', 'MAC Address', 'Location', 'Status', 'Branch'
+    ]
+
+    # === 2. Excel Format ===
+    if selected_format == 'excel':
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet()
+
+        # Styles
+        title_format = workbook.add_format({'bold': True, 'font_size': 16, 'align': 'center'})
+        header_format = workbook.add_format({'bold': True, 'bg_color': '#0a6ebd', 'font_color': 'white', 'border': 1})
+
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+        worksheet.merge_range('A1:I1', f'Switches Report for {report_branch_name}', title_format)
+        worksheet.write_row(1, 0, headers, header_format)
+
+        for row_num, sw in enumerate(switches, start=2):
+            row_data = [
+                sw.model,
+                sw.serial_number,
+                sw.number_of_ports,
+                sw.number_of_poe_ports,
+                sw.ip_address or '',
+                sw.mac_address or '',
+                sw.location or '',
+                sw.status,
+                sw.branch.name if sw.branch else '',
+            ]
+            worksheet.write_row(row_num, 0, row_data)
+
+        for col_num in range(len(headers)):
+            worksheet.set_column(col_num, col_num, 20)
+
+        workbook.close()
+        output.seek(0)
+
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_switches_report.xlsx"'
+        return response
+
+    # === 3. HTML Format ===
+    elif selected_format == 'html':
+        static_logo_url = request.build_absolute_uri(static('MLIT.png'))
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+
+        html_content = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Switches Report - {escape(report_branch_name)}</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                    background-color: #f4f4f4;
+                }}
+                .logo {{
+                    width: 150px;
+                    float: right;
+                }}
+                h1 {{
+                    text-align: center;
+                    color: #333;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    background-color: #fff;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                th, td {{
+                    padding: 12px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #0a6ebd;
+                    color: white;
+                }}
+                tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                .highlight-damage {{ background-color: #fdd; font-weight: bold; }}
+                .footer {{
+                    margin-top: 30px;
+                    text-align: center;
+                    color: #666;
+                    font-size: 0.9em;
+                }}
+            </style>
+        </head>
+        <body>
+            <img src="{static_logo_url}" class="logo" />
+            <h1>Switches Report for {escape(report_branch_name)}</h1>
+            <table>
+                <thead>
+                    <tr>
+        '''
+
+        for header in headers:
+            html_content += f'<th>{escape(header)}</th>'
+        html_content += '</tr></thead><tbody>'
+
+        for sw in switches:
+            status_class = "highlight-damage" if sw.status == "Damage" else ""
+            html_content += f'''
+            <tr class="{status_class}">
+                <td>{escape(sw.model)}</td>
+                <td>{escape(sw.serial_number)}</td>
+                <td>{sw.number_of_ports}</td>
+                <td>{sw.number_of_poe_ports}</td>
+                <td>{escape(sw.ip_address) if sw.ip_address else '-'}</td>
+                <td>{escape(sw.mac_address) if sw.mac_address else '-'}</td>
+                <td>{escape(sw.location) if sw.location else '-'}</td>
+                <td>{escape(sw.status)}</td>
+                <td>{escape(sw.branch.name) if sw.branch else '-'}</td>
+            </tr>
+            '''
+
+        html_content += '''
+                </tbody>
+            </table>
+            <div class="footer">Generated by MLTI Asset Management System</div>
+        </body>
+        </html>
+        '''
+
+        response = HttpResponse(html_content, content_type='text/html')
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_switches_report.html"'
+        return response
+
+    # === 4. Fallback for unsupported format ===
     else:
         messages.error(request, "Unsupported format for extraction.")
         return None

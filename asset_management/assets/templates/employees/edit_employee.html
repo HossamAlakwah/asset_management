@@ -190,6 +190,14 @@
                 <input type="hidden" id="assigned_screen" name="assigned_screen">
                 <p id="selectedScreenDisplay" style="margin-top: 10px; color: #0df;">No screen selected.</p>
             </div>
+            <div class="form-group full-width">
+                <label>Assign Telephone:</label>
+                <button type="button" class="btn btn-primary" id="openTelephoneModal">
+                    <i class="fas fa-plus"></i> Assign Telephone
+                </button>
+                <input type="hidden" id="assigned_telephone" name="assigned_telephone">
+                <p id="selectedTelephoneDisplay" style="margin-top: 10px; color: #0df;">No telephone selected.</p>
+            </div>
 
             <button type="submit" class="save-button full-width">
                 <i class="fas fa-save"></i> Update Employee
@@ -260,6 +268,36 @@
                 <p><em>No screens currently assigned.</em></p>
             {% endif %}
         </div>
+        <div class="form-group full-width" style="margin-top: 30px;">
+        <label class="section-label"><i class="fas fa-phone"></i> Currently Assigned Telephones</label>
+        {% if employee.telephone_set.exists %}
+            <div class="styled-asset-list">
+                {% for telephone in employee.telephone_set.all %}
+                    <div class="styled-asset-card">
+                        <div class="asset-icon"><i class="fas fa-phone"></i></div>
+                        <div class="asset-content">
+                            <div class="asset-header">
+                                <strong>{{ telephone.serial }}</strong>
+                                <span class="asset-type">({{ telephone.product }})</span>
+                            </div>
+                            <div class="asset-subtext">{{ telephone.brand }}</div>
+                        </div>
+                        <div class="asset-actions" style="display: flex; gap: 10px; margin-top: 8px;">
+                            <form method="POST" action="{% url 'unassign_telephone' telephone.id employee.id %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-small">
+                                    <i class="fas fa-unlink"></i> Unassign
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p><em>No telephones currently assigned.</em></p>
+        {% endif %}
+    </div>
+
     </div>
 </div>
 
@@ -373,6 +411,43 @@
     </div>
 </div>
 
+<!-- Telephone Selection Modal -->
+<div class="modal" id="telephoneSelectModal">
+    <div class="modal-content-large">
+        <span class="close-modal">&times;</span>
+        <div style="padding: 20px;">
+            <h3>Select a Telephone</h3>
+            <input type="text" id="telephoneSearchInput" placeholder="Search by serial..." style="width: 100%; padding: 8px; margin-bottom: 10px;">
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Serial</th>
+                        <th>Brand</th>
+                        <th>Product</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for telephone in telephones %}
+                    <tr>
+                        <td>{{ telephone.serial }}</td>
+                        <td>{{ telephone.brand }}</td>
+                        <td>{{ telephone.product }}</td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-success assign-telephone-btn"
+                                data-id="{{ telephone.id }}" data-label="{{ telephone.serial }}">
+                                Assign
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 </body>
 <script>
     // Modal open/close
@@ -435,6 +510,38 @@ document.querySelectorAll(".assign-screen-btn").forEach(button => {
 document.getElementById("screenSearchInput").addEventListener("input", function () {
     const filter = this.value.toLowerCase();
     const rows = document.querySelectorAll("#screenSelectModal tbody tr");
+    rows.forEach(row => {
+        const serial = row.children[0].textContent.toLowerCase();
+        row.style.display = serial.includes(filter) ? "" : "none";
+    });
+});
+// Telephone modal open/close
+document.getElementById("openTelephoneModal").onclick = function () {
+    document.getElementById("telephoneSelectModal").style.display = "block";
+    document.body.style.overflow = "hidden";
+};
+
+document.querySelector("#telephoneSelectModal .close-modal").onclick = function () {
+    document.getElementById("telephoneSelectModal").style.display = "none";
+    document.body.style.overflow = "auto";
+};
+
+// Assign telephone click
+document.querySelectorAll(".assign-telephone-btn").forEach(button => {
+    button.addEventListener("click", function () {
+        const telephoneId = this.dataset.id;
+        const telephoneLabel = this.dataset.label;
+        document.getElementById("assigned_telephone").value = telephoneId;
+        document.getElementById("selectedTelephoneDisplay").textContent = `Selected Telephone: ${telephoneLabel}`;
+        document.getElementById("telephoneSelectModal").style.display = "none";
+        document.body.style.overflow = "auto";
+    });
+});
+
+// Filter/search
+document.getElementById("telephoneSearchInput").addEventListener("input", function () {
+    const filter = this.value.toLowerCase();
+    const rows = document.querySelectorAll("#telephoneSelectModal tbody tr");
     rows.forEach(row => {
         const serial = row.children[0].textContent.toLowerCase();
         row.style.display = serial.includes(filter) ? "" : "none";

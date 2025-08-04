@@ -1,0 +1,291 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Edit Telephone: {{ telephone.serial }}</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" />
+</head>
+<style>
+/* Overlay */
+.modal {
+    position: fixed;
+    z-index: 9999;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.75);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 80px;
+    overflow-y: auto;
+}
+
+/* Modal Card */
+.modal-content {
+    position: relative;
+    background: #1e213a;
+    color: #edf2f7;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 480px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 20px 24px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    animation: fadeInScale 0.25s ease-out forwards;
+}
+
+/* Close “×” */
+.modal .close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 22px;
+    color: #a0aec0;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.modal .close:hover {
+    color: #e2e8f0;
+}
+
+/* Title */
+.modal h3 {
+    margin: 0 0 16px;
+    font-size: 22px;
+    color: #e2e8f0;
+    border-bottom: 1px solid #2d3348;
+    padding-bottom: 8px;
+}
+
+/* Search Input */
+#employeeSearch {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    background: #2d3348;
+    border: 1px solid #3e4a6d;
+    border-radius: 6px;
+    color: #edf2f7;
+    font-size: 14px;
+}
+#employeeSearch::placeholder {
+    color: #a0aec0;
+}
+
+/* Employee List */
+.employee-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #3e4a6d;
+    border-radius: 6px;
+    background: #2d3348;
+}
+
+/* List Items */
+.employee-list li {
+    padding: 10px 14px;
+    border-bottom: 1px solid #3e4a6d;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    color: #e2e8f0;
+}
+.employee-list li:last-child {
+    border-bottom: none;
+}
+.employee-list li:hover {
+    background-color: #3e4a6d;
+    color: #fff;
+    font-weight: 500;
+}
+
+/* Scrollbar (Webkit) */
+.employee-list::-webkit-scrollbar {
+    width: 6px;
+}
+.employee-list::-webkit-scrollbar-track {
+    background: #2d3348;
+    border-radius: 3px;
+}
+.employee-list::-webkit-scrollbar-thumb {
+    background: #4a5568;
+    border-radius: 3px;
+}
+.employee-list::-webkit-scrollbar-thumb:hover {
+    background: #718096;
+}
+
+/* Fade-in animation */
+@keyframes fadeInScale {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: scale(1); }
+}
+</style>
+
+<body>
+<div class="container">
+    <div class="header">
+        <h1 class="title"><i class="fas fa-desktop"></i> Edit Telephone: {{ telephone.serial }}</h1>
+        <a href="javascript:history.back()" class="header-back-btn"><i class="fas fa-arrow-left"></i> Back</a>
+    </div>
+
+    <div class="glass-card card-accent-top">
+        <h2 class="section-title"><i class="fas fa-info-circle"></i> Telephone Details</h2>
+
+        <form action="{% url 'edit_telephone' telephone.id %}" method="POST" class="form-grid">
+            {% csrf_token %}
+
+
+
+            <div class="form-group">
+                <label for="serial">Serial Number</label>
+                <input type="text" id="serial" name="serial" value="{{ telephone.serial }}" class="form-control" readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="product">Product</label>
+                <input type="text" id="product" name="product" value="{{ telephone.product }}" class="form-control" readonly>
+            </div>
+
+
+            <div class="form-group" id="brandField" >
+                <label for="brand">Brand</label>
+                <input type="text" id="brand" name="brand" value="{{ telephone.brand }}" class="form-control" required>
+            </div>
+
+            <div class="form-group" id="statusField">
+                <label for="status">Status</label>
+                <select name="status" id="status" class="form-control" required onchange="toggleFields()">
+                    {% for value, label in telephone_status_choices %}
+                        <option value="{{ value }}" {% if telephone.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" id="employeeField">
+                <label for="employee">Employee</label>
+
+                <input type="hidden" name="employee" id="employee_id"
+                    value="{% if telephone.employee %}{{ telephone.employee.id }}{% endif %}">
+
+                <input type="text" id="employee_display" class="form-control" readonly
+                    value="{% if telephone.employee %}{{ telephone.employee.name }}{% endif %}">
+
+                <button type="button" class="btn btn-secondary" style="margin-top: 1%;" onclick="openEmployeeModal()">Select Employee</button>
+            </div>
+
+
+            <div class="form-group" id="branch_field">
+                <label for="branch">Branch</label>
+                <select id="branch" name="branch" class="form-control" required>
+                    <option value="">-- Select Status --</option>
+                    {% for branch in branches %}
+                        <option value="{{ branch.id }}" {% if telephone.branch.id == branch.id %}selected{% endif %}>
+                            {{ branch.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+                {% if messages %}
+                    <div class="form-errors" id="formErrors">
+                        <ul>
+                            {% for message in messages %}
+                                <li class="{% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+
+            <button type="submit" class="save-button full-width">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        toggleFields();
+    });
+
+    function toggleFields() {
+        const status = document.getElementById('status').value;
+        const employeeField = document.getElementById('employeeField');
+        const employeeInput = document.getElementById('employee');
+        const branchfield = document.getElementById('branch_field');   
+        if (status === 'In Use') {
+            employeeField.style.display = 'block';
+            branchfield.style.display = 'block';
+            employeeInput.setAttribute('required', 'true');
+        } else {
+            employeeField.style.display = 'none';
+            status.value = 'stock';
+            branchfield.style.display = 'none';
+            employeeInput.removeAttribute('required');
+        }
+    }
+</script>
+
+<div id="employeeModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeEmployeeModal()">&times;</span>
+        <h3>Select Employee</h3>
+        <input type="text" id="employeeSearch" placeholder="Search by name..." class="form-control">
+
+        <ul id="employeeList" class="employee-list">
+            {% for emp in employees %}
+                <li onclick="selectEmployee({{ emp.id }}, '{{ emp.name }}')">{{ emp.name }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+</body>
+<script>
+function openEmployeeModal() {
+    document.getElementById('employeeModal').style.display = 'block';
+}
+
+function closeEmployeeModal() {
+    document.getElementById('employeeModal').style.display = 'none';
+}
+
+function selectEmployee(id, name) {
+    document.getElementById('employee_id').value = id;
+    document.getElementById('employee_display').value = name;
+    closeEmployeeModal();
+}
+
+// Live search filter
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('employeeSearch').addEventListener('input', function () {
+        const filter = this.value.toLowerCase();
+        const items = document.querySelectorAll('#employeeList li');
+        items.forEach(function (item) {
+            const name = item.textContent.toLowerCase();
+            item.style.display = name.includes(filter) ? '' : 'none';
+        });
+    });
+
+    toggleFields();  // for initial field visibility
+});
+</script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const errorBox = document.getElementById('formErrors');
+        if (errorBox) {
+            setTimeout(() => {
+                errorBox.style.transition = 'opacity 0.5s ease';
+                errorBox.style.opacity = '0';
+                setTimeout(() => errorBox.remove(), 500); // fully remove from DOM
+            }, 5000); // after 5 seconds
+        }
+    });
+</script>
+
+</html>
