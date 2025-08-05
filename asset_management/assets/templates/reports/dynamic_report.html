@@ -29,11 +29,12 @@
                         {% if field.field_type == 'choice' and field.choices %}
                             <select name="{{ field.field_name }}">
                                 <option value="">-- All --</option>
-                                {% for choice in field.choices %}
-                                    <option value="{{ choice }}" {% if filters|get_item:field.field_name == choice %}selected{% endif %}>
-                                        {{ choice }}
-                                    </option>
-                                {% endfor %}
+{% for choice in field.choices %}
+    <option value="{{ choice.value }}" {% if filters|get_item:field.field_name|stringformat:"s" == choice.value|stringformat:"s" %}selected{% endif %}>
+        {{ choice.label }}
+    </option>
+{% endfor %}
+
                             </select>
                         {% else %}
                             <input type="text" name="{{ field.field_name }}" value="{{ filters|get_item:field.field_name }}">

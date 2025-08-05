@@ -663,6 +663,19 @@ def dynamic_report_view(request):
 
         data = queryset.values(*[f.field_name for f in fields])
 
+        # for obj in queryset:
+        #     row = {}
+        #     for field in fields:
+        #         field_name = field.field_name
+        #         value = getattr(obj, field_name)
+
+        #         # If it's a ForeignKey, get its string representation
+        #         if hasattr(value, '__str__') and not isinstance(value, (str, int, float, bool)):
+        #             row[field_name] = str(value) if value else "None"
+        #         else:
+        #             row[field_name] = value
+
+        #     data.append(row)
     context = {
         "report_models": ReportableModel.objects.all(),
         "selected_model": selected_model,
