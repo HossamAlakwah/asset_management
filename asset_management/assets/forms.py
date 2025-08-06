@@ -6,11 +6,13 @@ from django.forms import inlineformset_factory
 
 from .models import (
     NVR,
+    AccessPoint,
     Asset,
     Camera,
     Firewall,
     ReportableField,
     ReportableModel,
+    Router,
     Screen,
     StorageDevice,
     Switch,
@@ -320,4 +322,93 @@ class SwitchEditForm(forms.ModelForm):
         if status == 'In Use' and not location:
             self.add_error('location', "Location is required when status is 'In Use'.")
 
+        return cleaned_data
+
+# Access Point creation form
+class AccessPointForm(forms.ModelForm):
+    class Meta:
+        model = AccessPoint
+        exclude = [
+            'created_by', 'created_at', 'updated_at',
+            'branch', 'status', 'location'
+        ]
+        widgets = {
+            'purchase_date': forms.DateInput(attrs={'type': 'date'}),
+            'expiry_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+    field_order = ['serial_number', 'model', 'ip_address', 'mac_address', 'purchase_date', 'expiry_date', 'comment']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['model'].required = True
+        self.fields['serial_number'].required = True
+        self.fields['expiry_date'].required = False  # optional, change if needed
+
+
+# Access Point edit form
+class AccessPointEditForm(forms.ModelForm):
+    class Meta:
+        model = AccessPoint
+        exclude = ['created_by', 'created_at', 'updated_at']
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        if not (user and hasattr(user, 'is_superadmin') and user.is_superadmin()):
+            self.fields['serial_number'].disabled = True
+            self.fields['purchase_date'].disabled = True
+            self.fields['mac_address'].disabled = True
+            self.fields['expiry_date'].disabled = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get('status')
+        location = cleaned_data.get('location')
+
+        if status == 'In Use' and not location:
+            self.add_error('location', "Location is required when status is 'In Use'.")
+        return cleaned_data
+
+# Router creation form
+class RouterForm(forms.ModelForm):
+    class Meta:
+        model = Router
+        exclude = [
+            'created_by', 'created_at', 'updated_at',
+            'branch', 'status', 'location'
+        ]
+        widgets = {
+            'purchase_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+    field_order = ['serial_number', 'model', 'ip_address', 'mac_address', 'purchase_date', 'comment']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['model'].required = True
+        self.fields['serial_number'].required = True
+
+
+# Router edit form
+class RouterEditForm(forms.ModelForm):
+    class Meta:
+        model = Router
+        exclude = ['created_by', 'created_at', 'updated_at']
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+
+        if not (user and hasattr(user, 'is_superadmin') and user.is_superadmin()):
+            self.fields['serial_number'].disabled = True
+            self.fields['purchase_date'].disabled = True
+            self.fields['mac_address'].disabled = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get('status')
+        location = cleaned_data.get('location')
+
+        if status == 'In Use' and not location:
+            self.add_error('location', "Location is required when status is 'In Use'.")
         return cleaned_data

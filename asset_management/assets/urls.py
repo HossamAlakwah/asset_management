@@ -106,6 +106,28 @@ path('branches/<slug:slug>/upload-switches/', views.upload_switches, name='uploa
 path('branches/<slug:slug>/extract-switches/', views.extract_switches_data, name='extract_switches_bulk'),
 path('switches/template/download/', views.download_switches_template, name='download_switches_template'),
 
+# Access Points
+path('access-points/', views.all_access_points, name='all_access_points'),
+path('access-points/add/', views.create_access_point, name='add_access_point'),
+path('access-points/<int:access_point_id>/', views.access_point_details, name='access_point_details'),
+path('access-points/<int:access_point_id>/edit/', views.edit_access_point, name='edit_access_point'),
+path('branches/<slug:slug>/access-points/', views.branch_access_points, name='branch_access_points'),
+path('logs/access-points/<slug:slug>/', views.all_access_point_log, name='all_access_point_logs'),
+path('branches/<slug:slug>/upload-access-points/', views.upload_access_points, name='upload_access_points'),
+path('branches/<slug:slug>/extract-access-points/', views.extract_access_points_data, name='extract_access_points_bulk'),
+path('access-points/template/download/', views.download_access_points_template, name='download_access_point_template'),
+
+# Routers
+path('routers/', views.all_routers, name='all_routers'),
+path('routers/add/', views.create_router, name='add_router'),
+path('routers/<int:router_id>/', views.router_details, name='router_details'),
+path('routers/<int:router_id>/edit/', views.edit_router, name='edit_router'),
+path('branches/<slug:slug>/routers/', views.branch_routers, name='branch_routers'),
+path('logs/routers/<slug:slug>/', views.all_router_log, name='all_router_logs'),
+path('branches/<slug:slug>/upload-routers/', views.upload_routers, name='upload_routers'),
+path('branches/<slug:slug>/extract-routers/', views.extract_routers_data, name='extract_routers_bulk'),
+path('routers/template/download/', views.download_routers_template, name='download_router_template'),
+
     # # Telecom-Access Related
     # path('telecom-access/', views.all_telecom_access, name='all_telecom_access'),
     # path('branches/<slug:slug>/telecom-access/', views.branch_telecom_access, name='branch_telecom_access'),

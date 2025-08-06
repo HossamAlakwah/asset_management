@@ -4,6 +4,8 @@ from django.utils import timezone
 
 from .models import (
     NVR,
+    AccessPoint,
+    AccessPointLog,
     Asset,
     AssetLog,
     Camera,
@@ -11,6 +13,8 @@ from .models import (
     Firewall,
     FirewallLog,
     NVRLog,
+    Router,
+    RouterLog,
     Screen,
     ScreenLog,
     Switch,
@@ -457,6 +461,142 @@ def log_switch_update(sender, instance, **kwargs):
 def log_switch_delete(sender, instance, **kwargs):
     SwitchLog.objects.create(
         switch=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=instance.status,
+        new_status='Deleted',
+        old_location=instance.location,
+        new_location='Deleted',
+        old_branch=instance.branch,
+        new_branch=None,
+        comment=instance.comment,
+        change_time=timezone.now()
+    )
+
+''' access point signals
+These signals are used to log changes to Switches, such as creation, updates, and deletions
+'''
+@receiver(post_save, sender=AccessPoint)
+def log_access_point_create(sender, instance, created, **kwargs):
+    if not created:
+        return
+
+    AccessPointLog.objects.create(
+        access_point=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=None,
+        new_status=instance.status,
+        old_location=None,
+        new_location='stock',
+        old_branch=None,
+        new_branch=instance.branch,
+        comment=instance.comment,
+        change_time=timezone.now()
+    )
+
+
+@receiver(pre_save, sender=AccessPoint)
+def log_access_point_update(sender, instance, **kwargs):
+    if not instance.pk:
+        return
+
+    try:
+        old = AccessPoint.objects.get(pk=instance.pk)
+    except AccessPoint.DoesNotExist:
+        return
+
+    changed = (
+        old.status != instance.status or
+        old.location != instance.location or
+        old.branch != instance.branch
+    )
+
+    if changed:
+        AccessPointLog.objects.create(
+            access_point=instance,
+            changed_by=getattr(instance, '_changed_by', None),
+            old_status=old.status,
+            new_status=instance.status,
+            old_location=old.location,
+            new_location=instance.location,
+            old_branch=old.branch,
+            new_branch=instance.branch,
+            comment=instance.comment,
+            change_time=timezone.now()
+        )
+
+
+@receiver(pre_delete, sender=AccessPoint)
+def log_access_point_delete(sender, instance, **kwargs):
+    AccessPointLog.objects.create(
+        access_point=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=instance.status,
+        new_status='Deleted',
+        old_location=instance.location,
+        new_location='Deleted',
+        old_branch=instance.branch,
+        new_branch=None,
+        comment=instance.comment,
+        change_time=timezone.now()
+    )
+    
+''' router signals
+These signals are used to log changes to Switches, such as creation, updates, and deletions
+'''
+@receiver(post_save, sender=Router)
+def log_router_create(sender, instance, created, **kwargs):
+    if not created:
+        return
+
+    RouterLog.objects.create(
+        router=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=None,
+        new_status=instance.status,
+        old_location=None,
+        new_location='stock',
+        old_branch=None,
+        new_branch=instance.branch,
+        comment=instance.comment,
+        change_time=timezone.now()
+    )
+
+
+@receiver(pre_save, sender=Router)
+def log_router_update(sender, instance, **kwargs):
+    if not instance.pk:
+        return
+
+    try:
+        old = Router.objects.get(pk=instance.pk)
+    except Router.DoesNotExist:
+        return
+
+    changed = (
+        old.status != instance.status or
+        old.location != instance.location or
+        old.branch != instance.branch
+    )
+
+    if changed:
+        RouterLog.objects.create(
+            router=instance,
+            changed_by=getattr(instance, '_changed_by', None),
+            old_status=old.status,
+            new_status=instance.status,
+            old_location=old.location,
+            new_location=instance.location,
+            old_branch=old.branch,
+            new_branch=instance.branch,
+            comment=instance.comment,
+            change_time=timezone.now()
+        )
+
+
+@receiver(pre_delete, sender=Router)
+def log_router_delete(sender, instance, **kwargs):
+    RouterLog.objects.create(
+        router=instance,
         changed_by=getattr(instance, '_changed_by', None),
         old_status=instance.status,
         new_status='Deleted',

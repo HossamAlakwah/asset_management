@@ -22,24 +22,30 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_POST
 
 from .download_templates import (
+    generate_access_point_template,
     generate_asset_template,
     generate_camera_template,
     generate_firewall_template,
     generate_nvr_template,
+    generate_router_template,
     generate_screen_template,
     generate_switch_template,
     generate_telephone_template,
 )
 from .extract_date import (
+    generate_access_points_report,
     generate_assets_report,
     generate_cameras_report,
     generate_firewalls_report,
     generate_nvrs_report,
+    generate_routers_report,
     generate_screens_report,
     generate_switches_report,
     generate_telephones_report,
 )
 from .forms import (
+    AccessPointEditForm,
+    AccessPointForm,
     AssetForm,
     CameraEditForm,
     CameraForm,
@@ -47,6 +53,8 @@ from .forms import (
     FirewallForm,
     NVREditForm,
     NVRForm,
+    RouterEditForm,
+    RouterForm,
     ScreenForm,
     StorageDeviceFormSet,
     SwitchEditForm,
@@ -55,6 +63,8 @@ from .forms import (
 )
 from .models import (
     NVR,
+    AccessPoint,
+    AccessPointLog,
     Asset,
     AssetLog,
     Branch,
@@ -66,6 +76,8 @@ from .models import (
     NVRLog,
     ReportableField,
     ReportableModel,
+    Router,
+    RouterLog,
     Screen,
     ScreenLog,
     StorageDevice,
@@ -75,11 +87,13 @@ from .models import (
     TelephoneLog,
 )
 from .upload_data import (
+    upload_bulk_access_points,
     upload_bulk_asset,
     upload_bulk_cameras,
     upload_bulk_employee,
     upload_bulk_firewalls,
     upload_bulk_nvrs,
+    upload_bulk_routers,
     upload_bulk_screens,
     upload_bulk_switches,
     upload_bulk_telephones,
@@ -1884,3 +1898,332 @@ def extract_switches_data(request, slug):
     selected_status = request.POST.get('status')
     selected_format = request.POST.get('format')
     return generate_switches_report(request, branch, selected_status, selected_format)
+
+'''
+Access Points part
+'''
+@login_required
+def all_access_points(request):
+    unique_asset_types = list(
+        AccessPoint.objects.order_by('status').values_list('status', flat=True).distinct()
+    )
+
+    aps = AccessPoint.objects.all().order_by('id')
+    all_count = aps.count()
+    stock_count = aps.filter(status='Stock').count()
+    in_use_count = aps.filter(status='In Use').count()
+    damage_count = aps.filter(status='Damage').count()
+
+    context = {
+        'access_points': aps,
+        'all': all_count,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        'unique_asset_types': unique_asset_types,
+    }
+    return render(request, 'infra/access_points/all_access_points.html', context)
+
+
+@login_required
+def branch_access_points(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    aps = AccessPoint.objects.filter(branch=branch)
+
+    total = aps.count()
+    stock_count = aps.filter(status='Stock').count()
+    in_use_count = aps.filter(status='In Use').count()
+    damage_count = aps.filter(status='Damage').count()
+
+    context = {
+        'branch': branch,
+        'access_points': aps,
+        'all': total,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        'current_branch_slug': slug,
+    }
+    return render(request, 'infra/access_points/access_points_by_branch.html', context)
+
+
+@xframe_options_exempt
+def access_point_details(request, access_point_id):
+    ap = get_object_or_404(AccessPoint, pk=access_point_id)
+    return render(request, 'infra/access_points/access_point_details.html', {'access_point': ap})
+
+
+@login_required
+def edit_access_point(request, access_point_id):
+    ap = get_object_or_404(AccessPoint, pk=access_point_id)
+    stock_branch = Branch.objects.filter(name__iexact='stock').first()
+    choosable_branches = Branch.objects.filter(choosable=True)
+
+    if request.method == 'POST':
+        form = AccessPointEditForm(request.POST, instance=ap, user=request.user)
+        if form.is_valid():
+            ap = form.save(commit=False)
+            if ap.status != 'In Use':
+                ap.branch = stock_branch
+                ap.location = 'stock'
+            else:
+                if ap.branch and ap.branch.choosable:
+                    pass
+                else:
+                    messages.error(request, "Please select a valid branch.")
+                    return render(request, 'infra/access_points/access_point_edit.html', {
+                        'form': form,
+                        'access_point': ap,
+                        'choosable_branches': choosable_branches,
+                        'stock_branch': stock_branch,
+                    })
+
+            ap._changed_by = request.user
+            ap.save()
+            return redirect('access_point_details', access_point_id=ap.id)
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = AccessPointEditForm(instance=ap, user=request.user)
+
+    return render(request, 'infra/access_points/access_point_edit.html', {
+        'form': form,
+        'access_point': ap,
+        'choosable_branches': choosable_branches,
+        'stock_branch': stock_branch,
+    })
+
+
+@login_required
+def create_access_point(request):
+    if request.method == 'POST':
+        form = AccessPointForm(request.POST)
+        if form.is_valid():
+            ap = form.save(commit=False)
+            ap.created_by = request.user
+            ap.status = 'Stock'
+            ap.branch = Branch.objects.get(name__iexact='stock')
+            ap._changed_by = request.user
+            ap.save()
+            messages.success(request, 'Access Point added successfully.')
+            return redirect('all_access_points')
+    else:
+        form = AccessPointForm()
+
+    return render(request, 'infra/access_points/access_point_create.html', {'form': form})
+
+
+@login_required
+def all_access_point_log(request, slug):
+    if slug == 'All':
+        logs = AccessPointLog.objects.all().order_by('-change_time')
+        branch = None
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        ap_ids = AccessPoint.objects.filter(branch=branch).values_list('id', flat=True)
+        logs = AccessPointLog.objects.filter(access_point_id__in=ap_ids).order_by('-change_time')
+
+    return render(request, 'infra/access_points/access_point_logs.html', {
+        'logs': logs,
+        'branch': branch,
+        'current_branch_slug': slug,
+    })
+
+
+@require_POST
+@login_required
+def upload_access_points(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    if 'excel_file' in request.FILES:
+        excel_file = request.FILES['excel_file']
+        success = upload_bulk_access_points(request, excel_file, branch, slug, request.user)
+        if not success:
+            return redirect('branch_assets', slug=slug)
+    else:
+        messages.error(request, "No Excel file was uploaded.")
+    return redirect('branch_assets', slug=slug)
+
+
+@login_required
+def download_access_points_template(request):
+    return generate_access_point_template()
+
+
+@login_required
+def extract_access_points_data(request, slug):
+    branch = get_object_or_404(Branch, slug=slug) if slug != 'All' else 'All'
+    selected_status = request.POST.get('status')
+    selected_format = request.POST.get('format')
+    return generate_access_points_report(request, branch, selected_status, selected_format)
+
+'''
+Routers part
+'''
+@login_required
+def all_routers(request):
+    unique_asset_types = list(
+        Router.objects.order_by('status').values_list('status', flat=True).distinct()
+    )
+
+    routers = Router.objects.all().order_by('id')
+    all_count = routers.count()
+    stock_count = routers.filter(status='Stock').count()
+    in_use_count = routers.filter(status='In Use').count()
+    damage_count = routers.filter(status='Damage').count()
+
+    context = {
+        'routers': routers,
+        'all': all_count,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        'unique_asset_types': unique_asset_types,
+    }
+
+    return render(request, 'infra/routers/all_routers.html', context)
+
+
+@login_required
+def branch_routers(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    routers = Router.objects.filter(branch=branch)
+
+    total = routers.count()
+    stock_count = routers.filter(status='Stock').count()
+    in_use_count = routers.filter(status='In Use').count()
+    damage_count = routers.filter(status='Damage').count()
+
+    context = {
+        'branch': branch,
+        'routers': routers,
+        'all': total,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        'current_branch_slug': slug,
+    }
+
+    return render(request, 'infra/routers/routers_by_branch.html', context)
+
+
+@xframe_options_exempt
+def router_details(request, router_id):
+    router = get_object_or_404(Router, pk=router_id)
+    return render(request, 'infra/routers/router_details.html', {'router': router})
+
+
+@login_required
+def edit_router(request, router_id):
+    router = get_object_or_404(Router, pk=router_id)
+    stock_branch = Branch.objects.filter(name__iexact='stock').first()
+    choosable_branches = Branch.objects.filter(choosable=True)
+
+    if request.method == 'POST':
+        form = RouterEditForm(request.POST, instance=router, user=request.user)
+        if form.is_valid():
+            router = form.save(commit=False)
+            status = form.cleaned_data.get('status')
+
+            if status != 'In Use':
+                router.branch = stock_branch
+                router.location = 'stock'
+            else:
+                branch = form.cleaned_data.get('branch')
+                if branch and branch.choosable:
+                    router.branch = branch
+                else:
+                    messages.error(request, "Please select a valid branch.")
+                    return render(request, 'infra/routers/router_edit.html', {
+                        'form': form,
+                        'router': router,
+                        'choosable_branches': choosable_branches,
+                        'stock_branch': stock_branch,
+                    })
+
+            if router.status == 'Stock' and status == 'In Use':
+                router.location = None
+
+            router._changed_by = request.user
+            router.save()
+            return redirect('router_details', router_id=router.id)
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = RouterEditForm(instance=router, user=request.user)
+
+    return render(request, 'infra/routers/router_edit.html', {
+        'form': form,
+        'router': router,
+        'choosable_branches': choosable_branches,
+        'stock_branch': stock_branch,
+        'status': router.status,
+    })
+
+
+@login_required
+def create_router(request):
+    if request.method == 'POST':
+        form = RouterForm(request.POST)
+        if form.is_valid():
+            router = form.save(commit=False)
+            router.created_by = request.user
+            router.status = 'Stock'
+            router.branch = Branch.objects.get(name__iexact='stock')
+            router._changed_by = request.user
+            router.save()
+
+            messages.success(request, 'Router added successfully.')
+            return redirect('all_routers')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = RouterForm()
+
+    return render(request, 'infra/routers/router_create.html', {'form': form})
+
+
+@login_required
+def all_router_log(request, slug):
+    if slug == 'All':
+        logs = RouterLog.objects.all().order_by('-change_time')
+        branch = None
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        router_ids = Router.objects.filter(branch=branch).values_list('id', flat=True)
+        logs = RouterLog.objects.filter(router_id__in=router_ids).order_by('-change_time')
+
+    return render(request, 'infra/routers/router_logs.html', {
+        'logs': logs,
+        'branch': branch,
+        'current_branch_slug': slug,
+    })
+
+
+@require_POST
+@login_required
+def upload_routers(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    if 'excel_file' in request.FILES:
+        excel_file = request.FILES['excel_file']
+        success = upload_bulk_routers(request, excel_file, branch, slug, request.user)
+
+        if not success:
+            return redirect('branch_assets', slug=slug)
+    else:
+        messages.error(request, "No Excel file was uploaded.")
+
+    return redirect('branch_assets', slug=slug)
+
+
+@login_required
+def download_routers_template(request):
+    return generate_router_template()
+
+
+@login_required
+def extract_routers_data(request, slug):
+    branch = get_object_or_404(Branch, slug=slug) if slug != 'All' else 'All'
+    selected_status = request.POST.get('status')
+    selected_format = request.POST.get('format')
+
+    return generate_routers_report(request, branch, selected_status, selected_format)

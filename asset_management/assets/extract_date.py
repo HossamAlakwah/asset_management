@@ -7,7 +7,17 @@ from django.http import HttpResponse
 from django.templatetags.static import static
 from django.utils.html import escape
 
-from .models import NVR, Asset, Camera, Firewall, Screen, Switch, Telephone
+from .models import (
+    NVR,
+    AccessPoint,
+    Asset,
+    Camera,
+    Firewall,
+    Router,
+    Screen,
+    Switch,
+    Telephone,
+)
 
 '''
 the generate_assets_report function to handle both HTML and Excel formats
@@ -1189,6 +1199,311 @@ def generate_switches_report(request, branch, selected_status, selected_format):
         return response
 
     # === 4. Fallback for unsupported format ===
+    else:
+        messages.error(request, "Unsupported format for extraction.")
+        return None
+
+
+'''
+the generate_access_points_report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch and status, and returns it in the requested
+'''
+def generate_access_points_report(request, branch, selected_status, selected_format):
+    if str(branch) == 'All':
+        access_points = AccessPoint.objects.all()
+        if selected_status and selected_status != 'All':
+            access_points = access_points.filter(status=selected_status)
+    else:
+        access_points = AccessPoint.objects.filter(branch=branch)
+        if selected_status and selected_status != 'All':
+            access_points = access_points.filter(status=selected_status)
+
+    if not access_points.exists():
+        messages.warning(request, 'No data available to extract based on the selected filters.')
+        return None
+
+    headers = [
+        'Model', 'Serial Number', 'IP Address', 'MAC Address',
+        'Expiry Date', 'Location', 'Status', 'Branch'
+    ]
+
+    if selected_format == 'excel':
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet()
+
+        title_format = workbook.add_format({'bold': True, 'font_size': 16, 'align': 'center'})
+        header_format = workbook.add_format({'bold': True, 'bg_color': '#0a6ebd', 'font_color': 'white', 'border': 1})
+
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+        worksheet.merge_range('A1:H1', f'Access Points Report for {report_branch_name}', title_format)
+        worksheet.write_row(1, 0, headers, header_format)
+
+        for row_num, ap in enumerate(access_points, start=2):
+            row_data = [
+                ap.model,
+                ap.serial_number,
+                ap.ip_address or '',
+                ap.mac_address or '',
+                ap.expiry_date.strftime('%Y-%m-%d') if ap.expiry_date else '',
+                ap.location or '',
+                ap.status,
+                ap.branch.name if ap.branch else '',
+            ]
+            worksheet.write_row(row_num, 0, row_data)
+
+        for col_num in range(len(headers)):
+            worksheet.set_column(col_num, col_num, 20)
+
+        workbook.close()
+        output.seek(0)
+
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_access_points_report.xlsx"'
+        return response
+
+    elif selected_format == 'html':
+        static_logo_url = request.build_absolute_uri(static('MLIT.png'))
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+
+        html_content = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Access Points Report - {escape(report_branch_name)}</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                    background-color: #f4f4f4;
+                }}
+                .logo {{
+                    width: 150px;
+                    float: right;
+                }}
+                h1 {{
+                    text-align: center;
+                    color: #333;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    background-color: #fff;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                th, td {{
+                    padding: 12px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #0a6ebd;
+                    color: white;
+                }}
+                tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                .highlight-damage {{ background-color: #fdd; font-weight: bold; }}
+                .footer {{
+                    margin-top: 30px;
+                    text-align: center;
+                    color: #666;
+                    font-size: 0.9em;
+                }}
+            </style>
+        </head>
+        <body>
+            <img src="{static_logo_url}" class="logo" />
+            <h1>Access Points Report for {escape(report_branch_name)}</h1>
+            <table>
+                <thead>
+                    <tr>
+        '''
+        for header in headers:
+            html_content += f'<th>{escape(header)}</th>'
+        html_content += '</tr></thead><tbody>'
+
+        for ap in access_points:
+            status_class = "highlight-damage" if ap.status == "Damage" else ""
+            html_content += f'''
+            <tr class="{status_class}">
+                <td>{escape(ap.model)}</td>
+                <td>{escape(ap.serial_number)}</td>
+                <td>{escape(ap.ip_address) if ap.ip_address else '-'}</td>
+                <td>{escape(ap.mac_address) if ap.mac_address else '-'}</td>
+                <td>{ap.expiry_date.strftime('%Y-%m-%d') if ap.expiry_date else '-'}</td>
+                <td>{escape(ap.location) if ap.location else '-'}</td>
+                <td>{escape(ap.status)}</td>
+                <td>{escape(ap.branch.name) if ap.branch else '-'}</td>
+            </tr>
+            '''
+
+        html_content += '''
+                </tbody>
+            </table>
+            <div class="footer">Generated by MLTI Asset Management System</div>
+        </body>
+        </html>
+        '''
+
+        response = HttpResponse(html_content, content_type='text/html')
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_access_points_report.html"'
+        return response
+
+    else:
+        messages.error(request, "Unsupported format for extraction.")
+        return None
+
+'''
+the generate_routers_report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch and status, and returns it in the requested
+'''
+def generate_routers_report(request, branch, selected_status, selected_format):
+    if str(branch) == 'All':
+        routers = Router.objects.all()
+        if selected_status and selected_status != 'All':
+            routers = routers.filter(status=selected_status)
+    else:
+        routers = Router.objects.filter(branch=branch)
+        if selected_status and selected_status != 'All':
+            routers = routers.filter(status=selected_status)
+
+    if not routers.exists():
+        messages.warning(request, 'No data available to extract based on the selected filters.')
+        return None
+
+    headers = [
+        'Model', 'Serial Number', 'IP Address', 'MAC Address',
+        'Location', 'Status', 'Branch'
+    ]
+
+    if selected_format == 'excel':
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet()
+
+        title_format = workbook.add_format({'bold': True, 'font_size': 16, 'align': 'center'})
+        header_format = workbook.add_format({'bold': True, 'bg_color': '#0a6ebd', 'font_color': 'white', 'border': 1})
+
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+        worksheet.merge_range('A1:G1', f'Routers Report for {report_branch_name}', title_format)
+        worksheet.write_row(1, 0, headers, header_format)
+
+        for row_num, router in enumerate(routers, start=2):
+            row_data = [
+                router.model,
+                router.serial_number,
+                router.ip_address or '',
+                router.mac_address or '',
+                router.location or '',
+                router.status,
+                router.branch.name if router.branch else '',
+            ]
+            worksheet.write_row(row_num, 0, row_data)
+
+        for col_num in range(len(headers)):
+            worksheet.set_column(col_num, col_num, 20)
+
+        workbook.close()
+        output.seek(0)
+
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_routers_report.xlsx"'
+        return response
+
+    elif selected_format == 'html':
+        static_logo_url = request.build_absolute_uri(static('MLIT.png'))
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+
+        html_content = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Routers Report - {escape(report_branch_name)}</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                    background-color: #f4f4f4;
+                }}
+                .logo {{
+                    width: 150px;
+                    float: right;
+                }}
+                h1 {{
+                    text-align: center;
+                    color: #333;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    background-color: #fff;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                th, td {{
+                    padding: 12px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #0a6ebd;
+                    color: white;
+                }}
+                tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                .highlight-damage {{ background-color: #fdd; font-weight: bold; }}
+                .footer {{
+                    margin-top: 30px;
+                    text-align: center;
+                    color: #666;
+                    font-size: 0.9em;
+                }}
+            </style>
+        </head>
+        <body>
+            <img src="{static_logo_url}" class="logo" />
+            <h1>Routers Report for {escape(report_branch_name)}</h1>
+            <table>
+                <thead>
+                    <tr>
+        '''
+        for header in headers:
+            html_content += f'<th>{escape(header)}</th>'
+        html_content += '</tr></thead><tbody>'
+
+        for router in routers:
+            status_class = "highlight-damage" if router.status == "Damage" else ""
+            html_content += f'''
+            <tr class="{status_class}">
+                <td>{escape(router.model)}</td>
+                <td>{escape(router.serial_number)}</td>
+                <td>{escape(router.ip_address) if router.ip_address else '-'}</td>
+                <td>{escape(router.mac_address) if router.mac_address else '-'}</td>
+                <td>{escape(router.location) if router.location else '-'}</td>
+                <td>{escape(router.status)}</td>
+                <td>{escape(router.branch.name) if router.branch else '-'}</td>
+            </tr>
+            '''
+
+        html_content += '''
+                </tbody>
+            </table>
+            <div class="footer">Generated by MLTI Asset Management System</div>
+        </body>
+        </html>
+        '''
+
+        response = HttpResponse(html_content, content_type='text/html')
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_routers_report.html"'
+        return response
+
     else:
         messages.error(request, "Unsupported format for extraction.")
         return None

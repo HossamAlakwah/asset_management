@@ -6,11 +6,13 @@ from django.db import transaction
 
 from .models import (
     NVR,
+    AccessPoint,
     Asset,
     Branch,
     Camera,
     Employee,
     Firewall,
+    Router,
     StorageDevice,
     Telephone,
 )
@@ -759,5 +761,176 @@ def upload_bulk_switches(request, excel_file, branch, slug, user):
         messages.error(request, "Uploaded Excel file is empty.")
     except Exception as e:
         messages.error(request, f"Unexpected error during switch upload: {e}")
+
+    return False
+
+'''
+upload bulk access point function
+'''
+def upload_bulk_access_points(request, excel_file, branch, slug, user):
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+        expected_columns = [
+            'Model', 'Serial Number', 'IP Address', 'MAC Address', 'Expiry Date'
+        ]
+
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns: {', '.join(missing)}")
+            return False
+
+        try:
+            stock_branch = Branch.objects.get(slug='stock')
+        except Branch.DoesNotExist:
+            messages.error(request, "Branch with slug='stock' not found.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    model = row['Model']
+                    serial = row['Serial Number']
+                    ip = row.get('IP Address')
+                    mac = row.get('MAC Address')
+                    expiry = row.get('Expiry Date')
+
+                    if pd.isna(model) or pd.isna(serial):
+                        errors.append(f"Row {idx + 2}: Missing required field(s)")
+                        continue
+
+                    model = str(model).strip()
+                    serial = str(serial).strip()
+                    ip = str(ip).strip() if not pd.isna(ip) else None
+                    mac = str(mac).strip() if not pd.isna(mac) else None
+                    expiry = pd.to_datetime(expiry).date() if not pd.isna(expiry) else None
+
+                    if AccessPoint.objects.filter(serial_number=serial).exists():
+                        errors.append(f"Skipped duplicate serial {serial}")
+                        skipped += 1
+                        continue
+
+                    ap = AccessPoint(
+                        model=model,
+                        serial_number=serial,
+                        ip_address=ip,
+                        mac_address=mac,
+                        expiry_date=expiry,
+                        status='Stock',
+                        location='Stock',
+                        branch=stock_branch,
+                        created_by=user
+                    )
+                    ap._changed_by = user
+                    ap.save()
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error for Serial '{serial}': {e}")
+
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Upload completed with {len(errors)} error(s), {imported} access points added, {skipped} skipped.")
+        else:
+            messages.success(request, f"{imported} access points successfully imported. {skipped} duplicates skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during access point upload: {e}")
+
+    return False
+
+'''
+upload bulk router function
+'''
+def upload_bulk_routers(request, excel_file, branch, slug, user):
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+        expected_columns = [
+            'Model', 'Serial Number', 'IP Address', 'MAC Address'
+        ]
+
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns: {', '.join(missing)}")
+            return False
+
+        try:
+            stock_branch = Branch.objects.get(slug='stock')
+        except Branch.DoesNotExist:
+            messages.error(request, "Branch with slug='stock' not found.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    model = row['Model']
+                    serial = row['Serial Number']
+                    ip = row.get('IP Address')
+                    mac = row.get('MAC Address')
+
+                    if pd.isna(model) or pd.isna(serial):
+                        errors.append(f"Row {idx + 2}: Missing required field(s)")
+                        continue
+
+                    model = str(model).strip()
+                    serial = str(serial).strip()
+                    ip = str(ip).strip() if not pd.isna(ip) else None
+                    mac = str(mac).strip() if not pd.isna(mac) else None
+
+                    if Router.objects.filter(serial_number=serial).exists():
+                        errors.append(f"Skipped duplicate serial {serial}")
+                        skipped += 1
+                        continue
+
+                    router = Router(
+                        model=model,
+                        serial_number=serial,
+                        ip_address=ip,
+                        mac_address=mac,
+                        status='Stock',
+                        location='Stock',
+                        branch=stock_branch,
+                        created_by=user
+                    )
+                    router._changed_by = user
+                    router.save()
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error for Serial '{serial}': {e}")
+
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Upload completed with {len(errors)} error(s), {imported} routers added, {skipped} skipped.")
+        else:
+            messages.success(request, f"{imported} routers successfully imported. {skipped} duplicates skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during router upload: {e}")
 
     return False

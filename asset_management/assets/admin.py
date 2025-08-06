@@ -1,8 +1,11 @@
-from assets.forms import CameraForm, NVRForm, ReportableFieldAdminForm
 from django.contrib import admin
+
+from assets.forms import CameraForm, NVRForm, ReportableFieldAdminForm
 
 from .models import (
     NVR,
+    AccessPoint,
+    AccessPointLog,
     Asset,
     AssetLog,
     Branch,
@@ -12,6 +15,8 @@ from .models import (
     Firewall,
     FirewallLog,
     NVRLog,
+    Router,
+    RouterLog,
     Screen,
     ScreenLog,
     Switch,
@@ -241,3 +246,43 @@ class SwitchAdmin(admin.ModelAdmin):
 @admin.register(SwitchLog)
 class SwitchLogAdmin(admin.ModelAdmin):
     list_display = ('switch', 'old_status', 'new_status', 'change_time', 'changed_by')
+
+'''
+Access Points part
+'''
+@admin.register(AccessPoint)
+class AccessPointAdmin(admin.ModelAdmin):
+    list_display = (
+        'serial_number', 'model', 'ip_address', 'mac_address', 
+        'expiry_date', 'status', 'branch', 'created_by', 'created_at'
+    )
+    search_fields = ('serial_number', 'model', 'ip_address', 'mac_address')
+    list_filter = ('status', 'branch', 'created_by')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(AccessPointLog)
+class AccessPointLogAdmin(admin.ModelAdmin):
+    list_display = ('access_point', 'old_status', 'new_status', 'change_time', 'changed_by')
+    search_fields = ('access_point__serial_number',)
+    list_filter = ('new_status', 'changed_by', 'change_time')
+
+'''
+Routers part
+'''
+@admin.register(Router)
+class RouterAdmin(admin.ModelAdmin):
+    list_display = (
+        'serial_number', 'model', 'ip_address', 'mac_address', 
+        'status', 'branch', 'created_by', 'created_at'
+    )
+    search_fields = ('serial_number', 'model', 'ip_address', 'mac_address')
+    list_filter = ('status', 'branch', 'created_by')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(RouterLog)
+class RouterLogAdmin(admin.ModelAdmin):
+    list_display = ('router', 'old_status', 'new_status', 'change_time', 'changed_by')
+    search_fields = ('router__serial_number',)
+    list_filter = ('new_status', 'changed_by', 'change_time')

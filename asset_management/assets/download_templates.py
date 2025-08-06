@@ -7,9 +7,11 @@ from openpyxl.worksheet.datavalidation import DataValidation
 
 from .models import (  # Make sure NVR is imported
     NVR,
+    AccessPoint,
     Asset,
     Camera,
     Firewall,
+    Router,
     Screen,
     StorageDevice,
     Switch,
@@ -289,4 +291,80 @@ def generate_switch_template():
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = 'attachment; filename=infra_switch_template.xlsx'
+    return response
+
+'''
+Generate Access Point template  
+This function creates an Excel template for bulk access point upload with predefined headers
+'''
+def generate_access_point_template():
+    wb = openpyxl.Workbook()
+
+    # ========== ACCESS POINT SHEET ==========
+    ws_ap = wb.active
+    ws_ap.title = "Access Point Upload"
+    ap_headers = [
+        'Model', 'Serial Number', 'IP Address', 'MAC Address', 'Expiry Date', 'Purchase Date'
+    ]
+    ws_ap.append(ap_headers)
+
+    # Mark required fields in red: Model, Serial Number
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col_letter in ['A', 'B']:
+        ws_ap[f"{col_letter}1"].fill = red_fill
+
+    # Optional: Dropdown for status (future-proof)
+    ap_status_choices = [choice[0] for choice in AccessPoint.STATUS_CHOICES]
+    dv_status = DataValidation(type="list", formula1=f'"{",".join(ap_status_choices)}"', allow_blank=False)
+    ws_ap.add_data_validation(dv_status)
+    dv_status.add("G2:G100")  # Placeholder if status column added later
+
+    # ========== RETURN FILE ==========
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=infra_access_point_template.xlsx'
+    return response
+
+'''
+Generate Router template  
+This function creates an Excel template for bulk router upload with predefined headers
+'''
+def generate_router_template():
+    wb = openpyxl.Workbook()
+
+    # ========== ROUTER SHEET ==========
+    ws_r = wb.active
+    ws_r.title = "Router Upload"
+    router_headers = [
+        'Model', 'Serial Number', 'IP Address', 'MAC Address', 'Purchase Date'
+    ]
+    ws_r.append(router_headers)
+
+    # Mark required fields in red: Model, Serial Number
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col_letter in ['A', 'B']:
+        ws_r[f"{col_letter}1"].fill = red_fill
+
+    # Optional: Dropdown for status (future-proof)
+    router_status_choices = [choice[0] for choice in Router.STATUS_CHOICES]
+    dv_status = DataValidation(type="list", formula1=f'"{",".join(router_status_choices)}"', allow_blank=False)
+    ws_r.add_data_validation(dv_status)
+    dv_status.add("F2:F100")  # Placeholder if status column added later
+
+    # ========== RETURN FILE ==========
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=infra_router_template.xlsx'
     return response
