@@ -368,3 +368,66 @@ def generate_router_template():
     )
     response['Content-Disposition'] = 'attachment; filename=infra_router_template.xlsx'
     return response
+
+from io import BytesIO
+
+import openpyxl
+from django.http import HttpResponse
+from openpyxl.styles import PatternFill
+from openpyxl.worksheet.datavalidation import DataValidation
+
+from .models import UPS
+
+"""
+Generate UPS Excel template
+This function creates an Excel template for bulk UPS upload with predefined headers
+"""
+def generate_ups_template():
+    wb = openpyxl.Workbook()
+
+    # ========== UPS SHEET ==========
+    ws_ups = wb.active
+    ws_ups.title = "UPS Upload"
+    ups_headers = [
+        'Model',                # A - required
+        'Serial Number',        # B - required
+        'Location',             # C
+        'IP Address',           # D
+        'Voltage',              # E
+        'Power Source',         # F
+        'Last Maintenance Date',# G
+        'Next Maintenance Date',# H
+        'Status',               # I
+        'Purchase Date',        # J
+        'Comment',              # K
+    ]
+    ws_ups.append(ups_headers)
+
+    # Mark required fields in red: Model, Serial Number
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col_letter in ['A', 'B']:
+        ws_ups[f"{col_letter}1"].fill = red_fill
+
+    # Dropdown for Status
+    status_choices = [choice[0] for choice in UPS.STATUS_CHOICES]
+    dv_status = DataValidation(type="list", formula1=f'"{",".join(status_choices)}"', allow_blank=False)
+    ws_ups.add_data_validation(dv_status)
+    dv_status.add("I2:I100")  # Apply to Status column
+
+    # Dropdown for Power Source
+    power_source_choices = [choice[0] for choice in UPS.POWER_SOURCE_CHOICES]
+    dv_power = DataValidation(type="list", formula1=f'"{",".join(power_source_choices)}"', allow_blank=True)
+    ws_ups.add_data_validation(dv_power)
+    dv_power.add("F2:F100")  # Apply to Power Source column
+
+    # ========== RETURN FILE ==========
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=infra_ups_template.xlsx'
+    return response

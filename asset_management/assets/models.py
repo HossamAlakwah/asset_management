@@ -6,6 +6,20 @@ from django.utils.text import slugify
 
 from users.models import CustomUser as User
 
+
+# models.py
+class FieldBehavior(models.Model):
+    model_name = models.CharField(max_length=100)  # e.g. "UPS"
+    field_name = models.CharField(max_length=100)  # e.g. "voltage"
+    is_required = models.BooleanField(default=False)
+    is_disabled = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ('model_name', 'field_name')
+        ordering = ['model_name', 'field_name']
+
+    def __str__(self):
+        return f"{self.model_name}.{self.field_name}"
 '''
 
 Branches table to store different branches of the company.
@@ -416,7 +430,7 @@ class InfraAsset(models.Model):
     mac_address = models.CharField(max_length=100, blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Stock')
     purchase_date = models.DateField(blank=True, null=True)
-    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=False)
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(
             User,
@@ -577,3 +591,52 @@ class RouterLog(InfraAssetLogBase):
 
     def __str__(self):
         return f"Log for Router {self.router.serial_number} on {self.change_time.strftime('%Y-%m-%d %H:%M')}"
+    
+'''
+UPS part
+'''
+class UPS(InfraAsset):
+    # Override inherited field to nullify it
+    mac_address = None  # This hides it from model/form logic
+
+    # Add UPS-specific fields
+    POWER_SOURCE_CHOICES = [
+        ('Utility', 'Utility'),
+        ('Battery', 'Battery'),
+        ('Generator', 'Generator'),
+    ]
+
+    voltage = models.FloatField(blank=True, null=True)
+    power_source = models.CharField(max_length=20, choices=POWER_SOURCE_CHOICES, blank=True, null=True)
+    last_maintenance_date = models.DateField(blank=True, null=True)
+    next_maintenance_date = models.DateField(blank=True, null=True)
+
+    class Meta:
+        verbose_name = "UPS"
+        verbose_name_plural = "UPS Devices"
+
+class UPSLog(InfraAssetLogBase):
+    POWER_SOURCE_CHOICES = [
+        ('Utility', 'Utility'),
+        ('Battery', 'Battery'),
+        ('Generator', 'Generator'),
+    ]
+
+    # New UPS-specific fields to track changes
+    old_voltage = models.FloatField(blank=True, null=True)
+    new_voltage = models.FloatField(blank=True, null=True)
+
+    old_power_source = models.CharField(max_length=20, choices=POWER_SOURCE_CHOICES, blank=True, null=True)
+    new_power_source = models.CharField(max_length=20, choices=POWER_SOURCE_CHOICES, blank=True, null=True)
+
+    old_last_maintenance_date = models.DateField(blank=True, null=True)
+    new_last_maintenance_date = models.DateField(blank=True, null=True)
+
+    old_next_maintenance_date = models.DateField(blank=True, null=True)
+    new_next_maintenance_date = models.DateField(blank=True, null=True)
+
+    ups = models.ForeignKey("UPS", on_delete=models.CASCADE, related_name="logs")
+
+    class Meta:
+        verbose_name = "UPS Log"
+        verbose_name_plural = "UPS Logs"

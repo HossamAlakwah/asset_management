@@ -1,3 +1,4 @@
+# admin.py
 from django.contrib import admin
 
 from assets.forms import CameraForm, NVRForm, ReportableFieldAdminForm
@@ -12,6 +13,7 @@ from .models import (
     Camera,
     CameraLog,
     Employee,
+    FieldBehavior,
     Firewall,
     FirewallLog,
     NVRLog,
@@ -24,6 +26,18 @@ from .models import (
     Telephone,
     TelephoneLog,
 )
+
+
+@admin.register(FieldBehavior)
+class FieldBehaviorAdmin(admin.ModelAdmin):
+    list_display = ['model_name', 'field_name', 'is_required', 'is_disabled']
+    list_editable = ['is_required', 'is_disabled']
+    
+    # ✅ Filter by model_name
+    list_filter = ['model_name']
+
+    # ✅ Search by model_name and field_name
+    search_fields = ['model_name', 'field_name']
 
 
 @admin.register(Branch)

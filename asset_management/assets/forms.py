@@ -4,8 +4,10 @@ from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.forms import inlineformset_factory
 
+from .forms_mixin import FieldBehaviorMixin
 from .models import (
     NVR,
+    UPS,
     AccessPoint,
     Asset,
     Camera,
@@ -131,20 +133,15 @@ class CameraForm(forms.ModelForm):
         self.fields['serial_number'].required = True
         self.fields['power_source'].required = True
 
-class CameraEditForm(forms.ModelForm):
+class CameraEditForm(forms.ModelForm,FieldBehaviorMixin):
     class Meta:
         model = Camera
         exclude = ['created_by', 'created_at', 'updated_at']
     def __init__(self, *args, **kwargs):
-        # Pop user from kwargs (make sure you pass it from the view)
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        self.apply_field_behaviors('Camera',user)  
 
-        # Disable fields only for non-superadmins
-        if not (user and hasattr(user, 'is_superadmin') and user.is_superadmin()):
-            self.fields['serial_number'].disabled = True
-            self.fields['purchase_date'].disabled = True
-            self.fields['mac_address'].disabled = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -185,17 +182,16 @@ class NVRForm(forms.ModelForm):
         self.fields['hdd_capacity'].required = True
         self.fields['number_of_ports'].required = True
 
-class NVREditForm(forms.ModelForm):
+class NVREditForm(forms.ModelForm,FieldBehaviorMixin):
     class Meta:
         model = NVR
         exclude = ['created_by', 'created_at', 'updated_at']
 
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        self.apply_field_behaviors('NVR',user)  # Replace with actual model name
 
-        self.fields['serial_number'].disabled = True
-        self.fields['purchase_date'].disabled = True
-        self.fields['mac_address'].disabled = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -230,17 +226,16 @@ class FirewallForm(forms.ModelForm):
         self.fields['model'].required = True
         self.fields['serial_number'].required = True
         
-class FirewallEditForm(forms.ModelForm):
+class FirewallEditForm(forms.ModelForm, FieldBehaviorMixin):
     class Meta:
         model = Firewall
         exclude = ['created_by', 'created_at', 'updated_at']
 
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        self.apply_field_behaviors('Firewall',user)  # Replace with actual model name
 
-        self.fields['serial_number'].disabled = True
-        self.fields['purchase_date'].disabled = True
-        # self.fields['mac_address'].disabled = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -281,7 +276,7 @@ class SwitchForm(forms.ModelForm):
         self.fields['number_of_ports'].required = True
         self.fields['number_of_poe_ports'].required = True
 
-class SwitchEditForm(forms.ModelForm):
+class SwitchEditForm(forms.ModelForm, FieldBehaviorMixin):
     ip_address = forms.GenericIPAddressField(
         required=False,
         widget=forms.TextInput(attrs={
@@ -306,12 +301,8 @@ class SwitchEditForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        self.apply_field_behaviors('Switch',user)  
 
-        # Disable fields only for non-superadmins
-        if not (user and hasattr(user, 'is_superadmin') and user.is_superadmin()):
-            self.fields['serial_number'].disabled = True
-            self.fields['purchase_date'].disabled = True
-            self.fields['mac_address'].disabled = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -346,7 +337,7 @@ class AccessPointForm(forms.ModelForm):
 
 
 # Access Point edit form
-class AccessPointEditForm(forms.ModelForm):
+class AccessPointEditForm(forms.ModelForm, FieldBehaviorMixin):
     class Meta:
         model = AccessPoint
         exclude = ['created_by', 'created_at', 'updated_at']
@@ -354,12 +345,8 @@ class AccessPointEditForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        self.apply_field_behaviors('AccessPoint',user)  
 
-        if not (user and hasattr(user, 'is_superadmin') and user.is_superadmin()):
-            self.fields['serial_number'].disabled = True
-            self.fields['purchase_date'].disabled = True
-            self.fields['mac_address'].disabled = True
-            self.fields['expiry_date'].disabled = True
 
     def clean(self):
         cleaned_data = super().clean()
@@ -390,7 +377,7 @@ class RouterForm(forms.ModelForm):
 
 
 # Router edit form
-class RouterEditForm(forms.ModelForm):
+class RouterEditForm(forms.ModelForm, FieldBehaviorMixin):
     class Meta:
         model = Router
         exclude = ['created_by', 'created_at', 'updated_at']
@@ -398,11 +385,65 @@ class RouterEditForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
+        self.apply_field_behaviors('Router',user)  # Replace with actual model name
 
-        if not (user and hasattr(user, 'is_superadmin') and user.is_superadmin()):
-            self.fields['serial_number'].disabled = True
-            self.fields['purchase_date'].disabled = True
-            self.fields['mac_address'].disabled = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get('status')
+        location = cleaned_data.get('location')
+
+        if status == 'In Use' and not location:
+            self.add_error('location', "Location is required when status is 'In Use'.")
+        return cleaned_data
+
+'''
+UPS FORMS
+'''
+
+
+
+class UPSForm(forms.ModelForm):
+    class Meta:
+        model = UPS
+        exclude = [
+            'created_by', 'created_at', 'updated_at',
+            'branch', 'status', 'location', 'mac_address'  
+        ]
+        widgets = {
+            'purchase_date': forms.DateInput(attrs={'type': 'date'}),
+            'last_maintenance_date': forms.DateInput(attrs={'type': 'date'}),
+            'next_maintenance_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    field_order = [
+        'serial_number', 'model', 'ip_address', 'voltage',
+        'power_source', 'purchase_date',
+        'last_maintenance_date', 'next_maintenance_date', 'comment'
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['model'].required = True
+        self.fields['serial_number'].required = True
+        self.fields['power_source'].required = False 
+
+class UPSEditForm(forms.ModelForm, FieldBehaviorMixin):
+    class Meta:
+        model = UPS
+        exclude = ['created_by', 'created_at', 'updated_at', 'mac_address']
+
+        widgets = {
+            'purchase_date': forms.DateInput(attrs={'type': 'date'}),
+            'last_maintenance_date': forms.DateInput(attrs={'type': 'date'}),
+            'next_maintenance_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        self.apply_field_behaviors('UPS',user)  
+
 
     def clean(self):
         cleaned_data = super().clean()

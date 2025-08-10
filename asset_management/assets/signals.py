@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from .models import (
     NVR,
+    UPS,
     AccessPoint,
     AccessPointLog,
     Asset,
@@ -21,6 +22,7 @@ from .models import (
     SwitchLog,
     Telephone,
     TelephoneLog,
+    UPSLog,
 )
 
 '''
@@ -605,5 +607,101 @@ def log_router_delete(sender, instance, **kwargs):
         old_branch=instance.branch,
         new_branch=None,
         comment=instance.comment,
+        change_time=timezone.now()
+    )
+    
+
+'''
+UPS part
+'''
+@receiver(post_save, sender=UPS)
+def log_ups_create(sender, instance, created, **kwargs):
+    if not created:
+        return
+
+    UPSLog.objects.create(
+        ups=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=None,
+        new_status=instance.status,
+        old_location=None,
+        new_location='stock',
+        old_branch=None,
+        new_branch=instance.branch,
+        old_voltage=None,
+        new_voltage=instance.voltage,
+        old_power_source=None,
+        new_power_source=instance.power_source,
+        old_last_maintenance_date=None,
+        new_last_maintenance_date=instance.last_maintenance_date,
+        old_next_maintenance_date=None,
+        new_next_maintenance_date=instance.next_maintenance_date,
+        comment=instance.comment,
+        change_time=timezone.now()
+    )
+
+@receiver(pre_save, sender=UPS)
+def log_ups_update(sender, instance, **kwargs):
+    if not instance.pk:
+        return  # skip if not yet saved
+
+    try:
+        old = UPS.objects.get(pk=instance.pk)
+    except UPS.DoesNotExist:
+        return
+
+    changed = any([
+        old.status != instance.status,
+        old.location != instance.location,
+        old.branch != instance.branch,
+        old.voltage != instance.voltage,
+        old.power_source != instance.power_source,
+        old.last_maintenance_date != instance.last_maintenance_date,
+        old.next_maintenance_date != instance.next_maintenance_date,
+    ])
+
+    if changed:
+        UPSLog.objects.create(
+            ups=instance,
+            changed_by=getattr(instance, '_changed_by', None),
+            old_status=old.status,
+            new_status=instance.status,
+            old_location=old.location,
+            new_location=instance.location,
+            old_branch=old.branch,
+            new_branch=instance.branch,
+            old_voltage=old.voltage,
+            new_voltage=instance.voltage,
+            old_power_source=old.power_source,
+            new_power_source=instance.power_source,
+            old_last_maintenance_date=old.last_maintenance_date,
+            new_last_maintenance_date=instance.last_maintenance_date,
+            old_next_maintenance_date=old.next_maintenance_date,
+            new_next_maintenance_date=instance.next_maintenance_date,
+            comment=instance.comment,
+            change_time=timezone.now()
+        )
+
+
+@receiver(pre_delete, sender=UPS)
+def log_ups_delete(sender, instance, **kwargs):
+    UPSLog.objects.create(
+        ups=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=instance.status,
+        new_status='Deleted',
+        old_location=instance.location,
+        new_location='Deleted',
+        old_branch=instance.branch,
+        new_branch=None,
+        old_voltage=instance.voltage,
+        new_voltage=None,
+        old_power_source=instance.power_source,
+        new_power_source='Deleted',
+        old_last_maintenance_date=instance.last_maintenance_date,
+        new_last_maintenance_date=None,
+        old_next_maintenance_date=instance.next_maintenance_date,
+        new_next_maintenance_date=None,
+        comment="Deleted",
         change_time=timezone.now()
     )

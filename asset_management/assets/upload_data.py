@@ -768,16 +768,25 @@ def upload_bulk_switches(request, excel_file, branch, slug, user):
 upload bulk access point function
 '''
 def upload_bulk_access_points(request, excel_file, branch, slug, user):
+    import pandas as pd
+    from django.db import transaction
+
+    from .models import AccessPoint, Branch
+
+    # === 1. Validate file type ===
     if not excel_file.name.endswith(('.xls', '.xlsx')):
         messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
         return False
 
     try:
         df = pd.read_excel(excel_file)
+
         expected_columns = [
-            'Model', 'Serial Number', 'IP Address', 'MAC Address', 'Expiry Date'
+            'Model', 'Serial Number', 'IP Address',
+            'MAC Address', 'Expiry Date'
         ]
 
+        # === 2. Check required columns ===
         if not all(col in df.columns for col in expected_columns):
             missing = [col for col in expected_columns if col not in df.columns]
             messages.error(request, f"Missing required columns: {', '.join(missing)}")
@@ -802,18 +811,23 @@ def upload_bulk_access_points(request, excel_file, branch, slug, user):
                     mac = row.get('MAC Address')
                     expiry = row.get('Expiry Date')
 
+                    # === 3. Check required fields (row-level) ===
                     if pd.isna(model) or pd.isna(serial):
-                        errors.append(f"Row {idx + 2}: Missing required field(s)")
+                        errors.append(
+                            f"Row {idx + 2}: Missing required field(s) – "
+                            f"Model: {'✔' if not pd.isna(model) else '✘'}, "
+                            f"Serial: {'✔' if not pd.isna(serial) else '✘'}"
+                        )
                         continue
 
-                    model = str(model).strip()
                     serial = str(serial).strip()
-                    ip = str(ip).strip() if not pd.isna(ip) else None
-                    mac = str(mac).strip() if not pd.isna(mac) else None
-                    expiry = pd.to_datetime(expiry).date() if not pd.isna(expiry) else None
+                    model = str(model).strip()
+                    ip = str(ip).strip() if pd.notna(ip) else None
+                    mac = str(mac).strip() if pd.notna(mac) else None
+                    expiry = pd.to_datetime(expiry).date() if pd.notna(expiry) else None
 
                     if AccessPoint.objects.filter(serial_number=serial).exists():
-                        errors.append(f"Skipped duplicate serial {serial}")
+                        errors.append(f"Skipped duplicate serial: {serial}")
                         skipped += 1
                         continue
 
@@ -833,8 +847,9 @@ def upload_bulk_access_points(request, excel_file, branch, slug, user):
                     imported += 1
 
                 except Exception as e:
-                    errors.append(f"Row {idx + 2}: Error for Serial '{serial}': {e}")
+                    errors.append(f"Row {idx + 2}: Error for Serial '{row.get('Serial Number', 'N/A')}': {e}")
 
+        # === 4. Final feedback ===
         if errors:
             for error in errors:
                 messages.error(request, error)
@@ -851,20 +866,28 @@ def upload_bulk_access_points(request, excel_file, branch, slug, user):
 
     return False
 
+
+
 '''
 upload bulk router function
 '''
 def upload_bulk_routers(request, excel_file, branch, slug, user):
+    import pandas as pd
+    from django.db import transaction
+
+    from .models import Branch, Router
+
+    # === 1. Validate file type ===
     if not excel_file.name.endswith(('.xls', '.xlsx')):
         messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
         return False
 
     try:
         df = pd.read_excel(excel_file)
-        expected_columns = [
-            'Model', 'Serial Number', 'IP Address', 'MAC Address'
-        ]
 
+        expected_columns = ['Model', 'Serial Number', 'IP Address', 'MAC Address']
+
+        # === 2. Check for missing columns ===
         if not all(col in df.columns for col in expected_columns):
             missing = [col for col in expected_columns if col not in df.columns]
             messages.error(request, f"Missing required columns: {', '.join(missing)}")
@@ -888,17 +911,22 @@ def upload_bulk_routers(request, excel_file, branch, slug, user):
                     ip = row.get('IP Address')
                     mac = row.get('MAC Address')
 
+                    # === 3. Required field check ===
                     if pd.isna(model) or pd.isna(serial):
-                        errors.append(f"Row {idx + 2}: Missing required field(s)")
+                        errors.append(
+                            f"Row {idx + 2}: Missing required field(s) – "
+                            f"Model: {'✔' if not pd.isna(model) else '✘'}, "
+                            f"Serial: {'✔' if not pd.isna(serial) else '✘'}"
+                        )
                         continue
 
-                    model = str(model).strip()
                     serial = str(serial).strip()
-                    ip = str(ip).strip() if not pd.isna(ip) else None
-                    mac = str(mac).strip() if not pd.isna(mac) else None
+                    model = str(model).strip()
+                    ip = str(ip).strip() if pd.notna(ip) else None
+                    mac = str(mac).strip() if pd.notna(mac) else None
 
                     if Router.objects.filter(serial_number=serial).exists():
-                        errors.append(f"Skipped duplicate serial {serial}")
+                        errors.append(f"Skipped duplicate serial: {serial}")
                         skipped += 1
                         continue
 
@@ -919,6 +947,7 @@ def upload_bulk_routers(request, excel_file, branch, slug, user):
                 except Exception as e:
                     errors.append(f"Row {idx + 2}: Error for Serial '{serial}': {e}")
 
+        # === 4. Final feedback ===
         if errors:
             for error in errors:
                 messages.error(request, error)
@@ -932,5 +961,114 @@ def upload_bulk_routers(request, excel_file, branch, slug, user):
         messages.error(request, "Uploaded Excel file is empty.")
     except Exception as e:
         messages.error(request, f"Unexpected error during router upload: {e}")
+
+    return False
+
+'''
+upload bulk UPS function
+'''
+def upload_bulk_ups(request, excel_file, branch, slug, user):
+    import pandas as pd
+    from django.contrib import messages
+    from django.db import transaction
+
+    from .models import UPS, Branch
+
+    # === 1. Validate file format ===
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+
+        expected_columns = [
+            'Model', 'Serial Number', 'IP Address',
+            'Voltage', 'Power Source', 'Last Maintenance Date', 'Next Maintenance Date'
+        ]
+
+        # === 2. Check required columns ===
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns: {', '.join(missing)}")
+            return False
+
+        try:
+            stock_branch = Branch.objects.get(slug=slug)
+        except Branch.DoesNotExist:
+            messages.error(request, f"Branch with slug='{slug}' not found.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    model = row['Model']
+                    serial = row['Serial Number']
+                    ip = row.get('IP Address')
+                    voltage = row.get('Voltage')
+                    power_source = row.get('Power Source')
+                    last_maint = row.get('Last Maintenance Date')
+                    next_maint = row.get('Next Maintenance Date')
+
+                    # === 3. Validate required row fields ===
+                    if pd.isna(model) or pd.isna(serial):
+                        errors.append(
+                            f"Row {idx + 2}: Missing required field(s) – "
+                            f"Model: {'✔' if not pd.isna(model) else '✘'}, "
+                            f"Serial: {'✔' if not pd.isna(serial) else '✘'}"
+                        )
+                        continue
+
+                    serial = str(serial).strip()
+                    model = str(model).strip()
+                    ip = str(ip).strip() if pd.notna(ip) else None
+                    voltage = float(voltage) if pd.notna(voltage) else None
+                    power_source = str(power_source).strip() if pd.notna(power_source) else None
+                    last_maint = pd.to_datetime(last_maint).date() if pd.notna(last_maint) else None
+                    next_maint = pd.to_datetime(next_maint).date() if pd.notna(next_maint) else None
+
+                    if UPS.objects.filter(serial_number=serial).exists():
+                        errors.append(f"Skipped duplicate serial: {serial}")
+                        skipped += 1
+                        continue
+
+                    ups = UPS(
+                        model=model,
+                        serial_number=serial,
+                        ip_address=ip,
+                        voltage=voltage,
+                        power_source=power_source,
+                        last_maintenance_date=last_maint,
+                        next_maintenance_date=next_maint,
+                        status='Stock',
+                        location='Stock',
+                        branch=stock_branch,
+                        created_by=user
+                    )
+                    ups._changed_by = user
+                    ups.save()
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error for Serial '{row.get('Serial Number', 'N/A')}': {e}")
+
+        # === 4. Final feedback ===
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Upload completed with {len(errors)} error(s), {imported} UPS devices added, {skipped} skipped.")
+        else:
+            messages.success(request, f"{imported} UPS devices successfully imported. {skipped} duplicates skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during UPS upload: {e}")
 
     return False

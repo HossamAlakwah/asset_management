@@ -31,6 +31,7 @@ from .download_templates import (
     generate_screen_template,
     generate_switch_template,
     generate_telephone_template,
+    generate_ups_template,
 )
 from .extract_date import (
     generate_access_points_report,
@@ -42,6 +43,7 @@ from .extract_date import (
     generate_screens_report,
     generate_switches_report,
     generate_telephones_report,
+    generate_ups_report,
 )
 from .forms import (
     AccessPointEditForm,
@@ -60,9 +62,12 @@ from .forms import (
     SwitchEditForm,
     SwitchForm,
     TelephoneForm,
+    UPSEditForm,
+    UPSForm,
 )
 from .models import (
     NVR,
+    UPS,
     AccessPoint,
     AccessPointLog,
     Asset,
@@ -85,6 +90,7 @@ from .models import (
     SwitchLog,
     Telephone,
     TelephoneLog,
+    UPSLog,
 )
 from .upload_data import (
     upload_bulk_access_points,
@@ -97,6 +103,7 @@ from .upload_data import (
     upload_bulk_screens,
     upload_bulk_switches,
     upload_bulk_telephones,
+    upload_bulk_ups,
 )
 
 
@@ -2227,3 +2234,176 @@ def extract_routers_data(request, slug):
     selected_format = request.POST.get('format')
 
     return generate_routers_report(request, branch, selected_status, selected_format)
+
+'''
+UPS part
+'''
+@login_required
+def all_ups(request):
+    unique_ups_status = list(
+        UPS.objects.order_by('status').values_list('status', flat=True).distinct()
+    )
+
+    ups_devices = UPS.objects.all().order_by('id')
+    all_count = ups_devices.count()
+    stock_count = ups_devices.filter(status='Stock').count()
+    in_use_count = ups_devices.filter(status='In Use').count()
+    damage_count = ups_devices.filter(status='Damage').count()
+
+    context = {
+        'ups_devices': ups_devices,
+        'all': all_count,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        'unique_ups_status': unique_ups_status,
+    }
+
+    return render(request, 'infra/ups/ups_all.html', context)
+
+
+@login_required
+def branch_ups(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    ups_devices = UPS.objects.filter(branch=branch)
+
+    total = ups_devices.count()
+    stock_count = ups_devices.filter(status='Stock').count()
+    in_use_count = ups_devices.filter(status='In Use').count()
+    damage_count = ups_devices.filter(status='Damage').count()
+
+    context = {
+        'branch': branch,
+        'ups_devices': ups_devices,
+        'all': total,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        'current_branch_slug': slug,
+    }
+
+    return render(request, 'infra/ups/ups_by_branch.html', context)
+
+
+@xframe_options_exempt
+def ups_details(request, ups_id):
+    ups_device = get_object_or_404(UPS, pk=ups_id)
+    return render(request, 'infra/ups/ups_details.html', {'ups_device': ups_device})
+
+
+@login_required
+def edit_ups(request, ups_id):
+    ups_device = get_object_or_404(UPS, pk=ups_id)
+    stock_branch = Branch.objects.filter(name__iexact='stock').first()
+    choosable_branches = Branch.objects.filter(choosable=True)
+
+    if request.method == 'POST':
+        form = UPSEditForm(request.POST, instance=ups_device, user=request.user)
+        if form.is_valid():
+            ups_device = form.save(commit=False)
+            status = form.cleaned_data.get('status')
+
+            if status != 'In Use':
+                ups_device.branch = stock_branch
+                ups_device.location = 'stock'
+            else:
+                branch = form.cleaned_data.get('branch')
+                if branch and branch.choosable:
+                    ups_device.branch = branch
+                else:
+                    messages.error(request, "Please select a valid branch.")
+                    return render(request, 'infra/ups/ups_edit.html', {
+                        'form': form,
+                        'ups_device': ups_device,
+                        'choosable_branches': choosable_branches,
+                        'stock_branch': stock_branch,
+                    })
+
+            if ups_device.status == 'Stock' and status == 'In Use':
+                ups_device.location = None
+
+            ups_device._changed_by = request.user
+            ups_device.save()
+            return redirect('ups_details', ups_id=ups_device.id)
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = UPSEditForm(instance=ups_device, user=request.user)
+
+    return render(request, 'infra/ups/ups_edit.html', {
+        'form': form,
+        'ups_device': ups_device,
+        'choosable_branches': choosable_branches,
+        'stock_branch': stock_branch,
+        'status': ups_device.status,
+    })
+
+
+@login_required
+def create_ups(request):
+    if request.method == 'POST':
+        form = UPSForm(request.POST)
+        if form.is_valid():
+            ups_device = form.save(commit=False)
+            ups_device.created_by = request.user
+            ups_device.status = 'Stock'
+            ups_device.location = 'Stock'
+            ups_device.branch = Branch.objects.get(name__iexact='stock')
+            ups_device._changed_by = request.user
+            ups_device.save()
+
+            messages.success(request, 'UPS added successfully.')
+            return redirect('all_ups')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = UPSForm()
+
+    return render(request, 'infra/ups/ups_create.html', {'form': form})
+
+
+@login_required
+def all_ups_log(request, slug):
+    if slug == 'All':
+        logs = UPSLog.objects.all().order_by('-change_time')
+        branch = None
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        ups_ids = UPS.objects.filter(branch=branch).values_list('id', flat=True)
+        logs = UPSLog.objects.filter(ups_id__in=ups_ids).order_by('-change_time')
+
+    return render(request, 'infra/ups/ups_logs.html', {
+        'logs': logs,
+        'branch': branch,
+        'current_branch_slug': slug,
+    })
+
+
+@require_POST
+@login_required
+def upload_ups(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    if 'excel_file' in request.FILES:
+        excel_file = request.FILES['excel_file']
+        success = upload_bulk_ups(request, excel_file, branch, slug, request.user)
+
+        if not success:
+            return redirect('all_ups', slug=slug)
+    else:
+        messages.error(request, "No Excel file was uploaded.")
+
+    return redirect('all_ups', slug=slug)
+
+
+@login_required
+def download_ups_template(request):
+    return generate_ups_template()
+
+
+@login_required
+def extract_ups_data(request, slug):
+    branch = get_object_or_404(Branch, slug=slug) if slug != 'All' else 'All'
+    selected_status = request.POST.get('status')
+    selected_format = request.POST.get('format')
+
+    return generate_ups_report(request, branch, selected_status, selected_format)
