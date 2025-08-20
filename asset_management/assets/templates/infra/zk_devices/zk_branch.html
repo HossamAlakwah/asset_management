@@ -1,0 +1,205 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ZK Devices - {{ branch.name }}</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" />
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">ZK Devices - {{ branch.name }}</h1>
+            <a href="{% url 'zk_all' %}" class="header-back-btn">
+                <i class="fas fa-arrow-left"></i> Back to All ZK
+            </a>
+        </div>
+
+        {% if messages %}
+        <div class="flash-messages">
+            {% for message in messages %}
+            <div class="flash-message {{ message.tags }}">
+                <i class="fas {% if message.tags == 'success' %}fa-check-circle{% elif message.tags == 'error' %}fa-exclamation-circle{% else %}fa-info-circle{% endif %}"></i>
+                {{ message }}
+                <button type="button" class="close"><i class="fas fa-times"></i></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Stats -->
+        <div class="dashboard-stats">
+            <div class="stat-card" data-status="all" onclick="filterByStatus(this)">
+                <div class="stat-number">{{ all }}</div>
+                <div class="stat-label">All ZK Devices</div>
+            </div>
+            <div class="stat-card" data-status="stock" onclick="filterByStatus(this)">
+                <div class="stat-number">{{ stock_count }}</div>
+                <div class="stat-label">In Stock</div>
+            </div>
+            <div class="stat-card" data-status="inuse" onclick="filterByStatus(this)">
+                <div class="stat-number">{{ in_use_count }}</div>
+                <div class="stat-label">In Use</div>
+            </div>
+            <div class="stat-card" data-status="damage" onclick="filterByStatus(this)">
+                <div class="stat-number">{{ damage_count }}</div>
+                <div class="stat-label">Damaged</div>
+            </div>
+        </div>
+
+        <!-- Search -->
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Search by model, serial" onkeyup="applyFilters()" />
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="showModal('uploadModal')">
+                    <i class="fas fa-file-upload"></i> Upload Excel
+                </button>
+                <button class="btn btn-success" onclick="showModal('extractModal')">
+                    <i class="fas fa-file-export"></i> Extract Data
+                </button>
+                <a href="{% url 'all_zk_log' slug=branch.slug %}" class="btn btn-danger" style="color: white; text-decoration: none;">
+                    <i class="fas fa-history"></i> View Logs
+                </a>
+                <a href="{% url 'add_zk' %}?branch={{ branch.id }}" class="btn btn-info" style="color: white; text-decoration: none;">
+                    <i class="fas fa-plus"></i> Add New ZK Device
+                </a>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-container">
+            <table id="zkTable">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Serial Number</th>
+                        <th>IP Address</th>
+                        <th>MAC Address</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for zk in zk_devices %}
+                    <tr data-status="{{ zk.status|lower|cut:' ' }}">
+                        <td>{{ zk.model }}</td>
+                        <td>{{ zk.serial_number|default:"-" }}</td>
+                        <td>{{ zk.ip_address|default:"-" }}</td>
+                        <td>{{ zk.mac_address|default:"-" }}</td>
+                        <td>{{ zk.location|default:"-" }}</td>
+                        <td>
+                            <span class="status-badge status-{{ zk.status|lower|cut:' ' }}">
+                                {{ zk.status }}
+                            </span>
+                        </td>
+                        <td class="action-icons">
+                            <a href="{% url 'zk_details' zk.id %}" title="View">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{% url 'edit_zk' zk.id %}" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Upload Excel File</h2>
+            <form method="post" action="{% url 'upload_zk' slug=branch.slug %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="file" name="excel_file" required accept=".xls,.xlsx" />
+                <br /><br />
+                <button type="submit">Upload</button>
+            </form>
+            <br>
+            <a href="{% url 'download_zk_template' %}" class="btn btn-outline-light" style="text-decoration: none;">
+                <i class="fas fa-file-download"></i> Download Template
+            </a>
+        </div>
+    </div>
+
+    <!-- Extract Modal -->
+    <div id="extractModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Extract Data</h2>
+            <form method="post" action="{% url 'extract_zk_bulk' slug=branch.slug %}">
+                {% csrf_token %}
+                <p>Filter by Status:</p>
+                <select name="status">
+                    <option value="all">All Statuses</option>
+                    {% for status in unique_asset_types %}
+                        <option value="{{ status|lower|cut:' ' }}">{{ status }}</option>
+                    {% endfor %}
+                </select>
+                <p>Select Format:</p>
+                <select name="format">
+                    <option value="excel">Excel (.xlsx)</option>
+                    <option value="html">HTML</option>
+                </select>
+                <br /><br />
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-download"></i> Extract
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function applyFilters() {
+            const query = document.getElementById("searchInput").value.toLowerCase();
+            const rows = document.querySelectorAll("#zkTable tbody tr");
+            rows.forEach(row => {
+                const model = row.cells[0].textContent.toLowerCase();
+                const serial = row.cells[1].textContent.toLowerCase();
+                const matches = model.includes(query) || serial.includes(query);
+                row.style.display = matches ? '' : 'none';
+            });
+        }
+
+        function filterByStatus(card) {
+            const isSelected = card.classList.contains('selected');
+            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('selected'));
+            if (!isSelected) card.classList.add('selected');
+
+            const status = card.getAttribute('data-status');
+            const rows = document.querySelectorAll('#zkTable tbody tr');
+            rows.forEach(row => {
+                const rowStatus = row.getAttribute('data-status');
+                row.style.display = (status === 'all' || rowStatus === status) ? '' : 'none';
+            });
+        }
+
+        function showModal(id) {
+            const modal = document.getElementById(id);
+            if (modal) modal.style.display = "block";
+        }
+
+        document.querySelectorAll(".modal .close").forEach(btn => {
+            btn.addEventListener("click", () => {
+                btn.closest(".modal").style.display = "none";
+            });
+        });
+
+        window.onclick = function (event) {
+            document.querySelectorAll(".modal").forEach(modal => {
+                if (event.target === modal) modal.style.display = "none";
+            });
+        };
+    </script>
+</body>
+</html>

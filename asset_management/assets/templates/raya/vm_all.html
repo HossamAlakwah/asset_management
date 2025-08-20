@@ -1,0 +1,247 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Raya Data Center - VM Management Dashboard</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" />
+    <style>
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+            display: inline-block;
+        }
+        .badge-expired {
+            background-color: #f8d7da;
+            color: #842029;
+            border: 1px solid #f5c2c7;
+        }
+        .badge-renew {
+            background-color: #fff3cd;
+            color: #664d03;
+            border: 1px solid #ffecb5;
+        }
+        .badge-active {
+            background-color: #d1e7dd;
+            color: #0f5132;
+            border: 1px solid #badbcc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">All Virtual Machines - Raya Data Center</h1>
+            <a href="{% url 'infrastructure' %}" class="header-back-btn">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+
+        {% if messages %}
+        <div class="flash-messages">
+            {% for message in messages %}
+            <div class="flash-message {{ message.tags }}">
+                <i class="fas {% if message.tags == 'success' %}fa-check-circle{% elif message.tags == 'error' %}fa-exclamation-circle{% else %}fa-info-circle{% endif %}"></i>
+                {{ message }}
+                <button type="button" class="close"><i class="fas fa-times"></i></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="dashboard-stats">
+            <div class="stat-card" data-status="all" onclick="filterByStatus(this)">
+                <div class="stat-number">{{ vms.count }}</div>
+                <div class="stat-label">All VMs</div>
+            </div>
+            <div class="stat-card" data-status="uat" onclick="filterByStatus(this)">
+                <div class="stat-number">{{ uat_count }}</div>
+                <div class="stat-label">UAT</div>
+            </div>
+            <div class="stat-card" data-status="prod" onclick="filterByStatus(this)">
+                <div class="stat-number">{{ prod_count }}</div>
+                <div class="stat-label">Production</div>
+            </div>
+        </div>
+
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Search by VM name, IP, or OS" onkeyup="applyFilters()" />
+        </div>
+
+        <div class="controls">
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="showModal('uploadModal')">
+                    <i class="fas fa-file-upload"></i> Upload Excel
+                </button>
+                <button class="btn btn-success" onclick="showModal('extractModal')">
+                    <i class="fas fa-file-export"></i> Extract Data
+                </button>
+
+                <a href="{% url 'add_vm' %}" class="btn btn-info" style="text-decoration: none;"> 
+                    <i class="fas fa-plus"></i> Add New VM
+                </a>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="vmTable">
+                <thead>
+                    <tr>
+                        <th>VM Name</th>
+                        <th>OS</th>
+                        <th>IP Address</th>
+                        <th>CPU</th>
+                        <th>RAM</th>
+                        <th>Disk</th>
+                        <th>Environment</th>
+                        <th>Contract End</th>
+                        <th>Renewal Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for vm in vms %}
+                    <tr data-status="{{ vm.environment|lower }}">
+                        <td>{{ vm.name }}</td>
+                        <td>{{ vm.operating_system|default:"-" }}</td>
+                        <td>{{ vm.ip_address|default:"-" }}</td>
+                        <td>{{ vm.vcpu|default:"-" }}</td>
+                        <td>{{ vm.vram_gb|default:"-" }}</td>
+                        <td>{{ vm.allocated_storage_gb|default:"-" }}</td>
+                        <td>{{ vm.environment }}</td>
+
+                        <!-- Contract End -->
+                        <td>
+                            {% if vm.contract_end %}
+                                {% if vm.contract_end < today %}
+                                    <span class="badge badge-expired">
+                                        {{ vm.contract_end|date:"Y-m-d" }} (Expired)
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-active">
+                                        {{ vm.contract_end|date:"Y-m-d" }}
+                                    </span>
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+
+                        <!-- Renewal Date -->
+                        <td>
+                            {% if vm.renewal_date %}
+                                {% if vm.renewal_date <= today %}
+                                    <span class="badge badge-renew">
+                                        {{ vm.renewal_date|date:"Y-m-d" }} (Renew Now)
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-active">
+                                        {{ vm.renewal_date|date:"Y-m-d" }}
+                                    </span>
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+
+                        <td class="action-icons">
+                            <a href="{% url 'vm_details' vm.id %}" title="View"><i class="fas fa-eye"></i></a>
+                            <a href="{% url 'edit_vm' vm.id %}" title="Edit"><i class="fas fa-edit"></i></a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Upload Excel File</h2>
+            <form method="post" action="{% url 'upload_vms' slug='raya' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="file" name="excel_file" required accept=".xls,.xlsx" />
+                <br><br>
+                <button type="submit">Upload</button>
+            </form>
+            <br>
+            <a href="{% url 'download_vm_template' %}" class="btn btn-outline-light" style="text-decoration: none;">
+                <i class="fas fa-file-download"></i> Download Template
+            </a>
+        </div>
+    </div>
+
+    <!-- Extract Modal -->
+    <div id="extractModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Extract Data</h2>
+            <form method="post" action="{% url 'extract_vms_bulk' %}">
+                {% csrf_token %}
+                <p>Filter by Environment:</p>
+                <select name="environment">
+                    <option value="All">All</option>
+                    <option value="uat">UAT</option>
+                    <option value="prod">Production</option>
+                </select>
+                <p>Select Format:</p>
+                <select name="format">
+                    <option value="excel">Excel (.xlsx)</option>
+                    <option value="html">HTML</option>
+                </select>
+                <br><br>
+                <button type="submit">Extract</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function applyFilters() {
+            const query = document.getElementById("searchInput").value.toLowerCase();
+            const rows = document.querySelectorAll("#vmTable tbody tr");
+            rows.forEach(row => {
+                const name = row.cells[0].textContent.toLowerCase();
+                const os = row.cells[1].textContent.toLowerCase();
+                const ip = row.cells[2].textContent.toLowerCase();
+                row.style.display = (name.includes(query) || os.includes(query) || ip.includes(query)) ? '' : 'none';
+            });
+        }
+
+        function filterByStatus(card) {
+            const isSelected = card.classList.contains('selected');
+            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('selected'));
+            if (!isSelected) card.classList.add('selected');
+
+            const status = card.getAttribute('data-status');
+            const rows = document.querySelectorAll('#vmTable tbody tr');
+            rows.forEach(row => {
+                const rowStatus = row.getAttribute('data-status');
+                row.style.display = (status === 'all' || rowStatus === status) ? '' : 'none';
+            });
+        }
+
+        function showModal(id) {
+            const modal = document.getElementById(id);
+            if (modal) modal.style.display = "block";
+        }
+
+        document.querySelectorAll(".modal .close").forEach(btn => {
+            btn.addEventListener("click", () => {
+                btn.closest(".modal").style.display = "none";
+            });
+        });
+
+        window.onclick = function (event) {
+            document.querySelectorAll(".modal").forEach(modal => {
+                if (event.target === modal) modal.style.display = "none";
+            });
+        };
+    </script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import xlsxwriter
 from django.contrib import messages
 from django.contrib.staticfiles.storage import staticfiles_storage
 from django.http import HttpResponse
+from django.shortcuts import redirect
 from django.templatetags.static import static
 from django.utils.html import escape
 
@@ -14,10 +15,12 @@ from .models import (
     Asset,
     Camera,
     Firewall,
+    RayaDataCenterVM,
     Router,
     Screen,
     Switch,
     Telephone,
+    ZKDevice,
 )
 
 '''
@@ -1676,3 +1679,310 @@ def generate_ups_report(request, branch, selected_status, selected_format):
     else:
         messages.error(request, "Unsupported format for extraction.")
         return None
+
+'''
+the generate_raya data center_report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch and status, and returns it in the requested format.'''
+def generate_raya_report(request, selected_format):
+    # ===== Filter Data =====
+    devices = RayaDataCenterVM.objects.all()
+
+    if not devices.exists():
+        messages.warning(request, 'No Raya Data Center data available to extract.')
+        return None
+
+    headers = [
+        'Name', 'Serial Number', 'IP Address',
+        'Contract Start Date', 'Contract End Date',
+        'Renewal Date', 'Comment', 'Created By', 'Created At'
+    ]
+
+    # ===== Excel Report =====
+    if selected_format == 'excel':
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet()
+
+        title_format = workbook.add_format({'bold': True, 'font_size': 16, 'align': 'center'})
+        header_format = workbook.add_format({'bold': True, 'bg_color': '#0a6ebd', 'font_color': 'white', 'border': 1})
+
+        worksheet.merge_range(0, 0, 0, len(headers) - 1, 'Raya Data Center Report', title_format)
+        worksheet.write_row(1, 0, headers, header_format)
+
+        for row_num, dev in enumerate(devices, start=2):
+            row_data = [
+                dev.name,
+                dev.serial_number,
+                dev.ip_address or '',
+                dev.contract_start_date.strftime('%Y-%m-%d') if dev.contract_start_date else '',
+                dev.contract_end_date.strftime('%Y-%m-%d') if dev.contract_end_date else '',
+                dev.renewal_date.strftime('%Y-%m-%d') if dev.renewal_date else '',
+                dev.comment or '',
+                dev.created_by.username if dev.created_by else '',
+                dev.created_at.strftime('%Y-%m-%d %H:%M') if dev.created_at else '',
+            ]
+            worksheet.write_row(row_num, 0, row_data)
+
+        for col_num in range(len(headers)):
+            worksheet.set_column(col_num, col_num, 20)
+
+        workbook.close()
+        output.seek(0)
+
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = 'attachment; filename="raya_data_center_report.xlsx"'
+        return response
+
+    # ===== HTML Report =====
+    elif selected_format == 'html':
+        static_logo_url = request.build_absolute_uri(static('MLIT.png'))
+
+        html_content = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Raya Data Center Report</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                    background-color: #f4f4f4;
+                }}
+                .logo {{
+                    width: 150px;
+                    float: right;
+                }}
+                h1 {{
+                    text-align: center;
+                    color: #333;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    background-color: #fff;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                th, td {{
+                    padding: 12px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #0a6ebd;
+                    color: white;
+                }}
+                tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                .footer {{
+                    margin-top: 30px;
+                    text-align: center;
+                    color: #666;
+                    font-size: 0.9em;
+                }}
+            </style>
+        </head>
+        <body>
+            <img src="{static_logo_url}" class="logo" />
+            <h1>Raya Data Center Report</h1>
+            <table>
+                <thead>
+                    <tr>
+        '''
+        for header in headers:
+            html_content += f'<th>{escape(header)}</th>'
+        html_content += '</tr></thead><tbody>'
+
+        for dev in devices:
+            html_content += f'''
+            <tr>
+                <td>{escape(dev.name)}</td>
+                <td>{escape(dev.serial_number)}</td>
+                <td>{escape(dev.ip_address) if dev.ip_address else '-'}</td>
+                <td>{dev.contract_start_date.strftime('%Y-%m-%d') if dev.contract_start_date else '-'}</td>
+                <td>{dev.contract_end_date.strftime('%Y-%m-%d') if dev.contract_end_date else '-'}</td>
+                <td>{dev.renewal_date.strftime('%Y-%m-%d') if dev.renewal_date else '-'}</td>
+                <td>{escape(dev.comment) if dev.comment else '-'}</td>
+                <td>{escape(dev.created_by.username) if dev.created_by else '-'}</td>
+                <td>{dev.created_at.strftime('%Y-%m-%d %H:%M') if dev.created_at else '-'}</td>
+            </tr>
+            '''
+
+        html_content += '''
+                </tbody>
+            </table>
+            <div class="footer">Generated by MLTI Asset Management System</div>
+        </body>
+        </html>
+        '''
+
+        response = HttpResponse(html_content, content_type='text/html')
+        response['Content-Disposition'] = 'attachment; filename="raya_data_center_report.html"'
+        return response
+
+    # ===== Unsupported format =====
+    else:
+        messages.error(request, "Unsupported format for extraction.")
+        return None
+
+
+
+
+def generate_zk_report(request, branch, selected_status, selected_format):
+
+    # --- Filter devices ---
+    if str(branch) == 'All':
+        devices = ZKDevice.objects.all()
+        print("🔍 Sample statuses:", list(devices.values_list("status", flat=True)[:10]))
+        if selected_status and selected_status != 'All':
+            devices = devices.filter(status=selected_status)
+    else:
+        devices = ZKDevice.objects.filter(branch=branch)
+        if selected_status and selected_status != 'All':
+            devices = devices.filter(status=selected_status)
+
+    # --- No data case ---
+    if not devices.exists():
+        messages.warning(request, 'No data available to extract based on the selected filters.')
+        return redirect('all_zk_devices')   # ✅ Redirect instead of returning None
+
+    headers = [
+        'Device Type', 'Model', 'Vendor', 'Serial Number',
+        'IP Address', 'MAC Address', 'Location', 'Status', 'Branch'
+    ]
+
+    # --- Excel export ---
+    if selected_format == 'excel':
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+        worksheet = workbook.add_worksheet()
+
+        title_format = workbook.add_format({'bold': True, 'font_size': 16, 'align': 'center'})
+        header_format = workbook.add_format({'bold': True, 'bg_color': '#0a6ebd', 'font_color': 'white', 'border': 1})
+
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+        worksheet.merge_range('A1:I1', f'ZK Devices Report for {report_branch_name}', title_format)
+        worksheet.write_row(1, 0, headers, header_format)
+
+        for row_num, device in enumerate(devices, start=2):
+            row_data = [
+                device.device_type,
+                device.model,
+                device.vendor or '',
+                device.serial_number,
+                device.ip_address,
+                device.mac_address or '',
+                device.location or '',
+                device.status,
+                device.branch.name if device.branch else '',
+            ]
+            worksheet.write_row(row_num, 0, row_data)
+
+        for col_num in range(len(headers)):
+            worksheet.set_column(col_num, col_num, 20)
+
+        workbook.close()
+        output.seek(0)
+
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_zkdevices_report.xlsx"'
+        return response
+
+    # --- HTML export ---
+    elif selected_format == 'html':
+        static_logo_url = request.build_absolute_uri(static('MLIT.png'))
+        report_branch_name = branch.name if hasattr(branch, 'name') else str(branch)
+
+        html_content = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>ZK Devices Report - {escape(report_branch_name)}</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    padding: 20px;
+                    background-color: #f4f4f4;
+                }}
+                .logo {{
+                    width: 150px;
+                    float: right;
+                }}
+                h1 {{
+                    text-align: center;
+                    color: #333;
+                }}
+                table {{
+                    width: 100%;
+                    border-collapse: collapse;
+                    background-color: #fff;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                }}
+                th, td {{
+                    padding: 12px;
+                    border: 1px solid #ddd;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #0a6ebd;
+                    color: white;
+                }}
+                tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                .highlight-damage {{ background-color: #fdd; font-weight: bold; }}
+                .footer {{
+                    margin-top: 30px;
+                    text-align: center;
+                    color: #666;
+                    font-size: 0.9em;
+                }}
+            </style>
+        </head>
+        <body>
+            <img src="{static_logo_url}" class="logo" />
+            <h1>ZK Devices Report for {escape(report_branch_name)}</h1>
+            <table>
+                <thead>
+                    <tr>
+        '''
+        for header in headers:
+            html_content += f'<th>{escape(header)}</th>'
+        html_content += '</tr></thead><tbody>'
+
+        for device in devices:
+            status_class = "highlight-damage" if device.status == "Damage" else ""
+            html_content += f'''
+            <tr class="{status_class}">
+                <td>{escape(device.device_type)}</td>
+                <td>{escape(device.model)}</td>
+                <td>{escape(device.vendor) if device.vendor else '-'}</td>
+                <td>{escape(device.serial_number)}</td>
+                <td>{escape(device.ip_address)}</td>
+                <td>{escape(device.mac_address) if device.mac_address else '-'}</td>
+                <td>{escape(device.location) if device.location else '-'}</td>
+                <td>{escape(device.status)}</td>
+                <td>{escape(device.branch.name) if device.branch else '-'}</td>
+            </tr>
+            '''
+
+        html_content += '''
+                </tbody>
+            </table>
+            <div class="footer">Generated by MLTI Asset Management System</div>
+        </body>
+        </html>
+        '''
+
+        response = HttpResponse(html_content, content_type='text/html')
+        filename_slug = branch.slug if hasattr(branch, 'slug') else 'all-branches'
+        response['Content-Disposition'] = f'attachment; filename="{filename_slug}_zkdevices_report.html"'
+        return response
+
+    # --- Unsupported format case ---
+    else:
+        messages.error(request, "Unsupported format for extraction.")
+        return redirect('all_zk_devices') 

@@ -4,6 +4,7 @@ from django.db.models import Sum
 from django.utils import timezone
 from django.utils.text import slugify
 
+today = timezone.now().date()
 from users.models import CustomUser as User
 
 
@@ -95,7 +96,7 @@ class Asset(models.Model):
     ]
     
     ASSET_TYPE_CHOICES = [
-                           ('Laptop', 'Laptop'),
+        ('Laptop', 'Laptop'),
         ('Desktop', 'Desktop'),
     ]
     
@@ -640,3 +641,88 @@ class UPSLog(InfraAssetLogBase):
     class Meta:
         verbose_name = "UPS Log"
         verbose_name_plural = "UPS Logs"
+
+
+'''
+Raya Data center
+'''
+class RayaDataCenterVM(models.Model):
+    ENV_CHOICES = [
+        ("uat", "UAT"),
+        ("prod", "Production"),
+    ]
+
+    name = models.CharField(max_length=100, unique=True)
+    ip_address = models.GenericIPAddressField(protocol="IPv4")
+    vcpu = models.PositiveIntegerField(help_text="Number of vCPUs (in cores)")
+    vram_gb = models.PositiveIntegerField(help_text="vRAM in GB")
+    allocated_storage_gb = models.PositiveIntegerField(default=0, help_text="Allocated Storage in GB")
+    operating_system = models.CharField(max_length=100, default="Ubuntu Linux")
+    environment = models.CharField(max_length=20, choices=ENV_CHOICES)
+    comments = models.TextField(blank=True, null=True)
+    # 🔹 Contract details
+    contract_start = models.DateField(null=True, blank=True)
+    contract_end = models.DateField(null=True, blank=True)
+    renewal_date = models.DateField(null=True, blank=True)
+
+    # Audit fields
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Raya Data Center VM"
+        verbose_name_plural = "Raya Data Center VMs"
+        ordering = ["environment", "name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.environment})"
+
+    # 🔹 Helpers
+    @property
+    def is_active_contract(self):
+        """Check if VM contract is still valid."""
+
+        return self.contract_end is None or self.contract_end >= today
+
+    @property
+    def is_due_for_renewal(self):
+        """Check if renewal date is near."""
+
+        return self.renewal_date and self.renewal_date <= today
+
+'''
+ZK Device model (Attendance Machine, Access Control, Access Door, etc.)
+'''
+class ZKDevice(InfraAsset):
+    DEVICE_TYPE_CHOICES = [
+        ('Attendance Machine', 'Attendance Machine'),
+        ('Access Control', 'Access Control'),
+        ('Access Door', 'Access Door'),
+    ]
+
+    device_type = models.CharField(max_length=50, choices=DEVICE_TYPE_CHOICES)
+    vendor = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Override ip_address from InfraAsset (make mandatory)
+    ip_address = models.GenericIPAddressField(protocol='both', unpack_ipv4=False)
+    class Meta:
+        verbose_name = "ZK Device"
+        verbose_name_plural = "ZK Devices"
+
+    def __str__(self):
+        return f"{self.device_type} - {self.serial_number} ({self.ip_address})"
+
+
+'''
+ZK Device Log model (inherits InfraAssetLogBase)
+'''
+class ZKDeviceLog(InfraAssetLogBase):
+    device = models.ForeignKey('ZKDevice', on_delete=models.CASCADE, related_name='logs')
+
+    class Meta:
+        verbose_name = 'ZK Device Log'
+        verbose_name_plural = 'ZK Device Logs'
+
+    def __str__(self):
+        return f"Log for {self.device.device_type} ({self.device.serial_number}) on {self.change_time.strftime('%Y-%m-%d %H:%M')}"

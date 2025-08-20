@@ -93,7 +93,6 @@ urlpatterns = [
     path('firewalls/template/download/', views.download_firewalls_template, name='download_firewalls_template'),
     path('branches/<slug:slug>/extract-firewalls/', views.extract_firewalls_data, name='extract_firewalls_bulk'),
 
-    # switch part 
     # SWITCH ROUTES
 
     path('switches/', views.all_switches, name='all_switches'),
@@ -138,6 +137,27 @@ urlpatterns = [
     path('branches/<slug:slug>/upload-ups/', views.upload_ups, name='upload_ups'),
     path('branches/<slug:slug>/extract-ups/', views.extract_ups_data, name='extract_ups_bulk'),
     path('ups/template/download/', views.download_ups_template, name='download_ups_template'),
+    
+    # Raya Data Center
+    path('raya-data-center/', views.all_vms, name='all_vms'),
+    path('raya-data-center/add/', views.create_vm, name='add_vm'),
+    path('raya-data-center/<int:vm_id>/', views.vm_details, name='vm_details'),
+    path('raya-data-center/<int:vm_id>/edit/', views.edit_vm, name='edit_vm'),
+    path('branches/<slug:slug>/upload-vms/', views.upload_vms, name='upload_vms'),
+    path('branches/extract-vms/', views.extract_vm_data, name='extract_vms_bulk'),
+    path('raya-data-center/template/download/', views.download_vm_template, name='download_vm_template'),
+    
+    # === ZK Devices ===
+    path('zks', views.all_zk_devices, name='all_zk_devices'),
+    path('zk/logs/<slug:slug>/', views.zk_device_logs, name='zk_device_logs'),
+    path('zk/<int:device_id>/', views.zk_device_details, name='zk_details'),
+    path('zk/<int:device_id>/edit/', views.edit_zk_device, name='edit_zk'),
+    path('branches/<slug:slug>/upload-zk/', views.upload_zk_devices, name='upload_zk_devices_bulk'),
+    path('branches/<slug:slug>/extract-zk/', views.extract_zk_devices, name='extract_zk_devices_bulk'),
+    path('zk/add/', views.add_zk_device, name='add_zk_device'),
+    path('zk/template/download/', views.download_zk_template, name='download_zk_template'),
+
+    
     # # Telecom-Access Related
     # path('telecom-access/', views.all_telecom_access, name='all_telecom_access'),
     # path('branches/<slug:slug>/telecom-access/', views.branch_telecom_access, name='branch_telecom_access'),

@@ -7,15 +7,18 @@ from openpyxl.worksheet.datavalidation import DataValidation
 
 from .models import (  # Make sure NVR is imported
     NVR,
+    UPS,
     AccessPoint,
     Asset,
     Camera,
     Firewall,
+    RayaDataCenterVM,
     Router,
     Screen,
     StorageDevice,
     Switch,
     Telephone,
+    ZKDevice,
 )
 
 '''
@@ -369,14 +372,6 @@ def generate_router_template():
     response['Content-Disposition'] = 'attachment; filename=infra_router_template.xlsx'
     return response
 
-from io import BytesIO
-
-import openpyxl
-from django.http import HttpResponse
-from openpyxl.styles import PatternFill
-from openpyxl.worksheet.datavalidation import DataValidation
-
-from .models import UPS
 
 """
 Generate UPS Excel template
@@ -430,4 +425,104 @@ def generate_ups_template():
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
     response['Content-Disposition'] = 'attachment; filename=infra_ups_template.xlsx'
+    return response
+
+
+def generate_raya_datacenter_template():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Raya Data Center Upload"
+
+    # Define headers (based on your model fields)
+    headers = [
+        'Name',
+        'Contract Start Date',
+        'Contract End Date',
+        'Renewal Date',
+        'VMs Count',
+        'CPU',
+        'RAM',
+        'Storage',
+        'Comments',
+    ]
+    ws.append(headers)
+
+    # Mark required fields
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col in ['A', 'B', 'C']:  # Name + Contract dates
+        ws[f"{col}1"].fill = red_fill
+
+    # Add dropdowns (if you have CHOICES in model)
+    def add_dropdown(col_letter, choices):
+        dv = DataValidation(type="list", formula1=f'"{",".join(choices)}"', allow_blank=True)
+        ws.add_data_validation(dv)
+        dv.add(f"{col_letter}2:{col_letter}100")
+
+    # Example: if you have status/renewal choices
+    if hasattr(RayaDataCenterVM, "STATUS_CHOICES"):
+        add_dropdown("I", [c[0] for c in RayaDataCenterVM.STATUS_CHOICES])
+
+    # Return file as HTTP response
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=raya_datacenter_template.xlsx'
+    return response
+
+
+'''
+Generate ZK Device template
+This function creates an Excel template for bulk ZK Device upload with predefined headers and drop-downs.
+'''
+def generate_zk_template():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "ZK Devices Upload"
+
+    # Define headers
+    headers = [
+        'Device Type', 'Model', 'Vendor',
+        'Serial Number', 'IP Address', 'MAC Address',
+        'Location', 'Comment'
+    ]
+    ws.append(headers)
+
+    # Highlight mandatory fields
+    red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+    for col in ['A', 'B', 'D', 'E']:  # Device Type, Model, Serial Number, IP Address
+        ws[f"{col}1"].fill = red_fill
+
+    # Define drop-down helper
+    def add_dropdown(col_letter, choices, allow_blank=False):
+        dv = DataValidation(
+            type="list",
+            formula1=f'"{",".join(choices)}"',
+            allow_blank=allow_blank
+        )
+        ws.add_data_validation(dv)
+        dv.add(f"{col_letter}2:{col_letter}100")
+
+    # Add drop-down for Device Type
+    add_dropdown("A", [c[0] for c in ZKDevice.DEVICE_TYPE_CHOICES])
+
+    # Adjust column widths for readability
+    column_widths = [20, 20, 20, 25, 20, 25, 20, 30]
+    for i, width in enumerate(column_widths, start=1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+
+    # Return file as HTTP response
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output,
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=zkdevice_template.xlsx'
     return response

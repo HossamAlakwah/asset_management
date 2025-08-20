@@ -23,6 +23,8 @@ from .models import (
     Telephone,
     TelephoneLog,
     UPSLog,
+    ZKDevice,
+    ZKDeviceLog,
 )
 
 '''
@@ -703,5 +705,79 @@ def log_ups_delete(sender, instance, **kwargs):
         old_next_maintenance_date=instance.next_maintenance_date,
         new_next_maintenance_date=None,
         comment="Deleted",
+        change_time=timezone.now()
+    )
+
+
+
+'''
+ZKDevice signals
+These signals are used to log changes to ZK Devices 
+(Attendance Machine, Access Control, Access Door).
+'''
+
+
+@receiver(post_save, sender=ZKDevice)
+def log_zkdevice_create(sender, instance, created, **kwargs):
+    if not created:
+        return
+
+    ZKDeviceLog.objects.create(
+        device=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=None,
+        new_status=instance.status,
+        old_location=None,
+        new_location=instance.location or "Stock",
+        old_branch=None,
+        new_branch=instance.branch,
+        comment=instance.comment,
+        change_time=timezone.now()
+    )
+
+
+@receiver(pre_save, sender=ZKDevice)
+def log_zkdevice_update(sender, instance, **kwargs):
+    if not instance.pk:
+        return
+
+    try:
+        old = ZKDevice.objects.get(pk=instance.pk)
+    except ZKDevice.DoesNotExist:
+        return
+
+    changed = (
+        old.status != instance.status or
+        old.location != instance.location or
+        old.branch != instance.branch
+    )
+
+    if changed:
+        ZKDeviceLog.objects.create(
+            device=instance,
+            changed_by=getattr(instance, '_changed_by', None),
+            old_status=old.status,
+            new_status=instance.status,
+            old_location=old.location,
+            new_location=instance.location,
+            old_branch=old.branch,
+            new_branch=instance.branch,
+            comment=instance.comment,
+            change_time=timezone.now()
+        )
+
+
+@receiver(pre_delete, sender=ZKDevice)
+def log_zkdevice_delete(sender, instance, **kwargs):
+    ZKDeviceLog.objects.create(
+        device=instance,
+        changed_by=getattr(instance, '_changed_by', None),
+        old_status=instance.status,
+        new_status='Deleted',
+        old_location=instance.location,
+        new_location='Deleted',
+        old_branch=instance.branch,
+        new_branch=None,
+        comment=instance.comment,
         change_time=timezone.now()
     )

@@ -12,6 +12,7 @@ from .models import (
     Asset,
     Camera,
     Firewall,
+    RayaDataCenterVM,
     ReportableField,
     ReportableModel,
     Router,
@@ -19,6 +20,7 @@ from .models import (
     StorageDevice,
     Switch,
     Telephone,
+    ZKDevice,
 )
 
 
@@ -453,3 +455,106 @@ class UPSEditForm(forms.ModelForm, FieldBehaviorMixin):
         if status == 'In Use' and not location:
             self.add_error('location', "Location is required when status is 'In Use'.")
         return cleaned_data
+
+
+
+class RayaDataCenterVMForm(forms.ModelForm, FieldBehaviorMixin):
+    class Meta:
+        model = RayaDataCenterVM
+        exclude = ['created_by', 'created_at', 'updated_at']
+        widgets = {
+            'contract_start': forms.DateInput(attrs={'type': 'date'}),
+            'contract_end': forms.DateInput(attrs={'type': 'date'}),
+            'renewal_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    field_order = [
+        'name', 'ip_address', 'vcpu', 'vram_gb',
+        'allocated_storage_gb', 'operating_system',
+        'environment', 'contract_start', 'contract_end',
+        'renewal_date','comments'
+        ]
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)   # pass user when editing
+        super().__init__(*args, **kwargs)
+
+        if user:
+            self.apply_field_behaviors('RayaDataCenterVM', user)
+
+        # Required fields
+        # self.fields['name'].required = True
+        # self.fields['ip_address'].required = True
+        # self.fields['vcpu'].required = True
+        # self.fields['vram_gb'].required = True
+        # self.fields['allocated_storage_gb'].required = True
+        # self.fields['operating_system'].required = True
+        # self.fields['environment'].required = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start = cleaned_data.get('contract_start')
+        end = cleaned_data.get('contract_end')
+
+        if start and end and start > end:
+            self.add_error('contract_end', "Contract end date cannot be before start date.")
+
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if commit:
+            instance.save()
+        return instance
+
+'''
+ZK Device Creation Form
+'''
+class ZKDeviceForm(forms.ModelForm):
+    class Meta:
+        model = ZKDevice
+        exclude = [
+            'created_by', 'created_at', 'updated_at', 
+            'branch', 'status', 'location'
+        ]
+        widgets = {
+            'purchase_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    field_order = [
+        'serial_number', 'model', 'device_type', 'vendor',
+        'ip_address', 'mac_address', 'purchase_date'
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Required fields
+        self.fields['model'].required = True
+        self.fields['serial_number'].required = True
+        self.fields['device_type'].required = True
+        self.fields['ip_address'].required = True  # mandatory for this model
+
+
+'''
+ZK Device Edit Form
+'''
+class ZKDeviceEditForm(forms.ModelForm, FieldBehaviorMixin):
+    class Meta:
+        model = ZKDevice
+        exclude = ['created_by', 'created_at', 'updated_at']
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        self.apply_field_behaviors('ZKDevice', user)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get('status')
+        location = cleaned_data.get('location')
+
+        if status == 'In Use' and not location:
+            self.add_error('location', "Location is required when status is 'In Use'.")
+        return cleaned_data
+

@@ -27,11 +27,13 @@ from .download_templates import (
     generate_camera_template,
     generate_firewall_template,
     generate_nvr_template,
+    generate_raya_datacenter_template,
     generate_router_template,
     generate_screen_template,
     generate_switch_template,
     generate_telephone_template,
     generate_ups_template,
+    generate_zk_template,
 )
 from .extract_date import (
     generate_access_points_report,
@@ -39,11 +41,13 @@ from .extract_date import (
     generate_cameras_report,
     generate_firewalls_report,
     generate_nvrs_report,
+    generate_raya_report,
     generate_routers_report,
     generate_screens_report,
     generate_switches_report,
     generate_telephones_report,
     generate_ups_report,
+    generate_zk_report,
 )
 from .forms import (
     AccessPointEditForm,
@@ -55,6 +59,7 @@ from .forms import (
     FirewallForm,
     NVREditForm,
     NVRForm,
+    RayaDataCenterVMForm,
     RouterEditForm,
     RouterForm,
     ScreenForm,
@@ -64,6 +69,8 @@ from .forms import (
     TelephoneForm,
     UPSEditForm,
     UPSForm,
+    ZKDeviceEditForm,
+    ZKDeviceForm,
 )
 from .models import (
     NVR,
@@ -79,6 +86,7 @@ from .models import (
     Firewall,
     FirewallLog,
     NVRLog,
+    RayaDataCenterVM,
     ReportableField,
     ReportableModel,
     Router,
@@ -91,6 +99,8 @@ from .models import (
     Telephone,
     TelephoneLog,
     UPSLog,
+    ZKDevice,
+    ZKDeviceLog,
 )
 from .upload_data import (
     upload_bulk_access_points,
@@ -99,11 +109,13 @@ from .upload_data import (
     upload_bulk_employee,
     upload_bulk_firewalls,
     upload_bulk_nvrs,
+    upload_bulk_raya_vms,
     upload_bulk_routers,
     upload_bulk_screens,
     upload_bulk_switches,
     upload_bulk_telephones,
     upload_bulk_ups,
+    upload_bulk_zk_devices,
 )
 
 
@@ -237,7 +249,6 @@ def create_employee(request):
     })
 
 
-from django.views.decorators.clickjacking import xframe_options_exempt
 
 
 @login_required
@@ -2407,3 +2418,272 @@ def extract_ups_data(request, slug):
     selected_format = request.POST.get('format')
 
     return generate_ups_report(request, branch, selected_status, selected_format)
+
+'''
+Raya data center part 
+'''
+@login_required
+def all_vms(request):
+    vms = RayaDataCenterVM.objects.all().order_by('id')
+    all_count = vms.count()
+    uat_count = vms.filter(environment="uat").count()
+    prod_count = vms.filter(environment="prod").count()
+    expired_count = vms.filter(contract_end__lt=date.today()).count()
+
+    context = {
+        'vms': vms,
+        'all': all_count,
+        'uat_count': uat_count,
+        'prod_count': prod_count,
+        'expired': expired_count,
+    }
+    return render(request, 'raya/vm_all.html', context)
+
+
+
+@xframe_options_exempt
+def vm_details(request, vm_id):
+    vm = get_object_or_404(RayaDataCenterVM, pk=vm_id)
+    return render(request, 'raya/vm_details.html', {'vm': vm})
+
+
+@login_required
+def edit_vm(request, vm_id):
+    vm = get_object_or_404(RayaDataCenterVM, pk=vm_id)
+
+    if request.method == 'POST':
+        form = RayaDataCenterVMForm(request.POST, instance=vm, user=request.user)
+        if form.is_valid():
+            vm = form.save(commit=False)
+            vm._changed_by = request.user
+            vm.save()
+            return redirect('vm_details', vm_id=vm.id)
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = RayaDataCenterVMForm(instance=vm, user=request.user)
+
+    return render(request, 'raya/vm_edit.html', {
+        'form': form,
+        'vm': vm,
+        'status': vm.status,
+    })
+
+
+@login_required
+def create_vm(request):
+    if request.method == 'POST':
+        form = RayaDataCenterVMForm(request.POST)
+        if form.is_valid():
+            vm = form.save(commit=False)
+            vm.created_by = request.user
+            vm.status = 'In Use'   # all Raya VMs are directly "In Use"
+            vm._changed_by = request.user
+            vm.save()
+
+            messages.success(request, 'VM added successfully.')
+            return redirect('all_vms')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = RayaDataCenterVMForm()
+
+    return render(request, 'raya/vm_create.html', {'form': form})
+
+
+
+
+@require_POST
+@login_required
+def upload_vms(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    if 'excel_file' in request.FILES:
+        excel_file = request.FILES['excel_file']
+        success = upload_bulk_raya_vms(request, excel_file, branch, slug, request.user)
+
+        if not success:
+            return redirect('all_vms')
+    else:
+        messages.error(request, "No Excel file was uploaded.")
+
+    return redirect('all_vms')
+
+
+@login_required
+def download_vm_template(request):
+    return generate_raya_datacenter_template()
+
+
+@login_required
+def extract_vm_data(request):
+    selected_format = request.POST.get('format')
+
+    return generate_raya_report(request, selected_format)
+
+"""
+==========================
+    ZK DEVICES VIEWS
+==========================
+"""
+
+@login_required
+def all_zk_devices(request):
+    unique_statuses = list(
+        ZKDevice.objects.order_by('status').values_list('status', flat=True).distinct()
+    )
+    devices = ZKDevice.objects.all().order_by('id')
+
+    all_count = devices.count()
+    stock_count = devices.filter(status='Stock').count()
+    in_use_count = devices.filter(status='In Use').count()
+    damage_count = devices.filter(status='Damage').count()
+
+    context = {
+        'devices': devices,
+        'all': all_count,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        "unique_statuses": unique_statuses,
+    }
+    return render(request, 'infra/zk_devices/zk_all.html', context)
+
+
+@login_required
+def branch_zk_devices(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    devices = ZKDevice.objects.filter(branch=branch)
+
+    total = devices.count()
+    stock_count = devices.filter(status='Stock').count()
+    in_use_count = devices.filter(status='In Use').count()
+    damage_count = devices.filter(status='Damage').count()
+
+    context = {
+        'branch': branch,
+        'devices': devices,
+        'all': total,
+        'stock_count': stock_count,
+        'in_use_count': in_use_count,
+        'damage_count': damage_count,
+        'current_branch_slug': slug,
+    }
+    return render(request, 'infra/zk_devices/zk_branch.html', context)
+
+
+@xframe_options_exempt
+def zk_device_details(request, device_id):
+    device = get_object_or_404(ZKDevice, pk=device_id)
+    return render(request, 'infra/zk_devices/zk_details.html', {'device': device})
+
+
+@login_required
+def edit_zk_device(request, device_id):
+    zk = get_object_or_404(ZKDevice, pk=device_id)
+    stock_branch = Branch.objects.filter(name__iexact='stock').first()
+    choosable_branches = Branch.objects.filter(choosable=True)
+
+    if request.method == 'POST':
+        form = ZKDeviceEditForm(request.POST, instance=zk, user=request.user)
+        if form.is_valid():
+            zk = form.save(commit=False)
+            if zk.status != 'In Use':
+                zk.branch = stock_branch
+                zk.location = 'stock'
+            else:
+                if zk.branch and zk.branch.choosable:
+                    pass
+                else:
+                    messages.error(request, "Please select a valid branch.")
+                    return render(request, 'infra/zk_devices/zk_edit.html', {
+                        'form': form,
+                        'device': zk,
+                        'choosable_branches': choosable_branches,
+                        'stock_branch': stock_branch,
+                    })
+
+            zk._changed_by = request.user
+            zk.save()
+            return redirect('zk_details', device_id=zk.id)
+        else:
+            print(form.errors)
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = ZKDeviceEditForm(instance=zk, user=request.user)
+
+    return render(request, 'infra/zk_devices/zk_edit.html', {
+        'form': form,
+        'device': zk,
+        'choosable_branches': choosable_branches,
+        'stock_branch': stock_branch,
+    })
+
+
+
+@login_required
+def add_zk_device(request):
+    if request.method == 'POST':
+        form = ZKDeviceForm(request.POST)
+        if form.is_valid():
+            device = form.save(commit=False)
+            device.created_by = request.user
+            device.status = 'Stock'
+            device.branch = Branch.objects.get(name__iexact='stock')
+            device._changed_by = request.user
+            device.save()
+
+            messages.success(request, 'ZK Device added successfully.')
+            return redirect('all_zk_devices')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = ZKDeviceForm()
+
+    return render(request, 'infra/zk_devices/zk_create.html', {'form': form})
+
+
+@login_required
+def zk_device_logs(request, slug):
+    if slug == 'All':
+        logs = ZKDeviceLog.objects.all().order_by('-change_time')
+        branch = None
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        device_ids = ZKDevice.objects.filter(branch=branch).values_list('id', flat=True)
+        logs = ZKDeviceLog.objects.filter(device_id__in=device_ids).order_by('-change_time')
+
+    return render(request, 'infra/zk_devices/zk_logs.html', {
+        'logs': logs,
+        'branch': branch,
+        'current_branch_slug': slug,
+    })
+
+
+@require_POST
+@login_required
+def upload_zk_devices(request, slug):
+    branch = get_object_or_404(Branch, slug=slug)
+    if 'excel_file' in request.FILES:
+        excel_file = request.FILES['excel_file']
+        success = upload_bulk_zk_devices(request, excel_file, branch, slug, request.user)
+
+        if not success:
+            return redirect('all_zk_devices', slug=slug) if slug != 'stock' else redirect('all_zk_devices')
+    else:
+        messages.error(request, "No Excel file was uploaded.")
+
+    return redirect('all_zk_devices', slug=slug) if slug != 'stock' else redirect('all_zk_devices')
+
+
+@login_required
+def download_zk_template(request):
+    return generate_zk_template()
+
+
+@login_required
+def extract_zk_devices(request, slug):
+    branch = get_object_or_404(Branch, slug=slug) if slug != 'All' else 'All'
+    selected_status = request.POST.get('status')
+    selected_format = request.POST.get('format')
+
+    return generate_zk_report(request, branch, selected_status, selected_format)

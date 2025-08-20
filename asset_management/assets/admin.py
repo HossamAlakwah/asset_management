@@ -25,6 +25,8 @@ from .models import (
     SwitchLog,
     Telephone,
     TelephoneLog,
+    ZKDevice,
+    ZKDeviceLog,
 )
 
 
@@ -300,3 +302,37 @@ class RouterLogAdmin(admin.ModelAdmin):
     list_display = ('router', 'old_status', 'new_status', 'change_time', 'changed_by')
     search_fields = ('router__serial_number',)
     list_filter = ('new_status', 'changed_by', 'change_time')
+    
+    
+@admin.register(ZKDevice)
+class ZKDeviceAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'device_type', 'vendor', 'model',
+        'serial_number', 'ip_address', 'status',
+        'location', 'branch', 'purchase_date',
+        'created_at', 'updated_at'
+    )
+    list_filter = ('device_type', 'status', 'branch', 'vendor')
+    search_fields = ('serial_number', 'model', 'ip_address', 'vendor')
+    ordering = ('-created_at',)
+    list_display_links = ('id', 'serial_number', 'model')
+    readonly_fields = ('created_at', 'updated_at', 'created_by')
+
+
+@admin.register(ZKDeviceLog)
+class ZKDeviceLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'device', 'changed_by',
+        'old_status', 'new_status',
+        'old_location', 'new_location',
+        'old_branch', 'new_branch',
+        'change_time'
+    )
+    search_fields = (
+        'device__serial_number', 'device__model',
+        'changed_by__username'
+    )
+    list_filter = ('new_status', 'new_branch', 'change_time')
+    ordering = ('-change_time',)
+    list_select_related = ('device', 'changed_by', 'old_branch', 'new_branch')
+    readonly_fields = ('change_time',)

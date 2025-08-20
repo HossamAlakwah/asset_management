@@ -6,6 +6,7 @@ from django.db import transaction
 
 from .models import (
     NVR,
+    UPS,
     AccessPoint,
     Asset,
     Branch,
@@ -15,6 +16,7 @@ from .models import (
     Router,
     StorageDevice,
     Telephone,
+    ZKDevice,
 )
 
 '''
@@ -968,11 +970,7 @@ def upload_bulk_routers(request, excel_file, branch, slug, user):
 upload bulk UPS function
 '''
 def upload_bulk_ups(request, excel_file, branch, slug, user):
-    import pandas as pd
-    from django.contrib import messages
-    from django.db import transaction
 
-    from .models import UPS, Branch
 
     # === 1. Validate file format ===
     if not excel_file.name.endswith(('.xls', '.xlsx')):
@@ -1070,5 +1068,236 @@ def upload_bulk_ups(request, excel_file, branch, slug, user):
         messages.error(request, "Uploaded Excel file is empty.")
     except Exception as e:
         messages.error(request, f"Unexpected error during UPS upload: {e}")
+
+    return False
+
+"""
+Upload bulk Raya Data Center VMs function
+"""
+def upload_bulk_raya_vms(request, excel_file, branch, slug, user):
+    import pandas as pd
+    from django.contrib import messages
+    from django.db import transaction
+
+    from .models import Branch, RayaDataCenterVM
+
+    # === 1. Validate file format ===
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+
+        expected_columns = [
+            'VM Name', 'IP Address', 'vCPU', 'vRAM (GB)',
+            'Allocated Storage (GB)', 'Operating System', 'Environment',
+            'Contract Start', 'Contract End', 'Renewal Date'
+        ]
+
+        # === 2. Check required columns ===
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns: {', '.join(missing)}")
+            return False
+
+        try:
+            stock_branch = Branch.objects.get(slug=slug)
+        except Branch.DoesNotExist:
+            messages.error(request, f"Branch with slug='{slug}' not found.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    vm_name = row['VM Name']
+                    ip = row.get('IP Address')
+                    vcpu = row.get('vCPU')
+                    vram = row.get('vRAM (GB)')
+                    storage = row.get('Allocated Storage (GB)')
+                    os = row.get('Operating System')
+                    env = row.get('Environment')
+                    start = row.get('Contract Start')
+                    end = row.get('Contract End')
+                    renewal = row.get('Renewal Date')
+
+                    # === 3. Validate required fields ===
+                    if pd.isna(vm_name) or pd.isna(ip):
+                        errors.append(
+                            f"Row {idx + 2}: Missing required field(s) – "
+                            f"VM Name: {'✔' if not pd.isna(vm_name) else '✘'}, "
+                            f"IP: {'✔' if not pd.isna(ip) else '✘'}"
+                        )
+                        continue
+
+                    vm_name = str(vm_name).strip()
+                    ip = str(ip).strip()
+                    vcpu = int(vcpu) if pd.notna(vcpu) else None
+                    vram = int(vram) if pd.notna(vram) else None
+                    storage = int(storage) if pd.notna(storage) else 0
+                    os = str(os).strip() if pd.notna(os) else "Unknown"
+                    env = str(env).strip().lower() if pd.notna(env) else "uat"
+
+                    start = pd.to_datetime(start).date() if pd.notna(start) else None
+                    end = pd.to_datetime(end).date() if pd.notna(end) else None
+                    renewal = pd.to_datetime(renewal).date() if pd.notna(renewal) else None
+
+                    # === 4. Avoid duplicates by VM name or IP ===
+                    if RayaDataCenterVM.objects.filter(name=vm_name).exists():
+                        errors.append(f"Skipped duplicate VM Name: {vm_name}")
+                        skipped += 1
+                        continue
+
+                    if RayaDataCenterVM.objects.filter(ip_address=ip).exists():
+                        errors.append(f"Skipped duplicate IP Address: {ip}")
+                        skipped += 1
+                        continue
+
+                    vm = RayaDataCenterVM(
+                        name=vm_name,
+                        ip_address=ip,
+                        vcpu=vcpu or 0,
+                        vram_gb=vram or 0,
+                        allocated_storage_gb=storage,
+                        operating_system=os,
+                        environment=env,
+                        contract_start=start,
+                        contract_end=end,
+                        renewal_date=renewal,
+                        created_by=user,
+                        branch=stock_branch
+                    )
+                    vm._changed_by = user
+                    vm.save()
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error for VM '{row.get('VM Name', 'N/A')}': {e}")
+
+        # === 5. Final feedback ===
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(
+                request,
+                f"Upload completed with {len(errors)} error(s), {imported} VMs added, {skipped} skipped."
+            )
+        else:
+            messages.success(request, f"{imported} VMs successfully imported. {skipped} duplicates skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during VM upload: {e}")
+
+    return False
+
+
+'''
+Upload bulk ZK Devices (attendance machine, access control, access door)
+'''
+def upload_bulk_zk_devices(request, excel_file, branch, slug, user):
+
+
+    # === 1. Validate file type ===
+    if not excel_file.name.endswith(('.xls', '.xlsx')):
+        messages.error(request, "Invalid file format. Please upload an Excel file (.xls or .xlsx).")
+        return False
+
+    try:
+        df = pd.read_excel(excel_file)
+
+        expected_columns = [
+            'Model', 'Serial Number', 'Device Type',
+            'Vendor', 'IP Address', 'Location'
+        ]
+
+        # === 2. Check for missing columns ===
+        if not all(col in df.columns for col in expected_columns):
+            missing = [col for col in expected_columns if col not in df.columns]
+            messages.error(request, f"Missing required columns: {', '.join(missing)}")
+            return False
+
+        try:
+            stock_branch = Branch.objects.get(slug='stock')
+        except Branch.DoesNotExist:
+            messages.error(request, "Branch with slug='stock' not found.")
+            return False
+
+        imported = 0
+        skipped = 0
+        errors = []
+
+        with transaction.atomic():
+            for idx, row in df.iterrows():
+                try:
+                    model = row['Model']
+                    serial = row['Serial Number']
+                    device_type = row['Device Type']
+                    vendor = row['Vendor']
+                    ip = row['IP Address']
+                    location = row.get('Location')
+
+                    # === 3. Required field check ===
+                    if pd.isna(model) or pd.isna(serial) or pd.isna(device_type) or pd.isna(ip):
+                        errors.append(
+                            f"Row {idx + 2}: Missing required field(s) – "
+                            f"Model: {'✔' if not pd.isna(model) else '✘'}, "
+                            f"Serial: {'✔' if not pd.isna(serial) else '✘'}, "
+                            f"Device Type: {'✔' if not pd.isna(device_type) else '✘'}, "
+                            f"IP Address: {'✔' if not pd.isna(ip) else '✘'}"
+                        )
+                        continue
+
+                    serial = str(serial).strip()
+                    model = str(model).strip()
+                    device_type = str(device_type).strip()
+                    vendor = str(vendor).strip() if pd.notna(vendor) else None
+                    ip = str(ip).strip()
+                    location = str(location).strip() if pd.notna(location) else 'Stock'
+
+                    if ZKDevice.objects.filter(serial_number=serial).exists():
+                        errors.append(f"Skipped duplicate serial: {serial}")
+                        skipped += 1
+                        continue
+
+                    zk = ZKDevice(
+                        model=model,
+                        serial_number=serial,
+                        device_type=device_type,
+                        vendor=vendor,
+                        ip_address=ip,
+                        location='stock',
+                        status='Stock',
+                        branch=stock_branch,
+                        created_by=user
+                    )
+                    zk._changed_by = user
+                    zk.save()
+                    imported += 1
+
+                except Exception as e:
+                    errors.append(f"Row {idx + 2}: Error for Serial '{row.get('Serial Number', 'N/A')}': {e}")
+
+        # === 4. Final feedback ===
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            messages.warning(request, f"Upload completed with {len(errors)} error(s), {imported} devices added, {skipped} skipped.")
+        else:
+            messages.success(request, f"{imported} ZK devices successfully imported. {skipped} duplicates skipped.")
+
+        return True
+
+    except pd.errors.EmptyDataError:
+        messages.error(request, "Uploaded Excel file is empty.")
+    except Exception as e:
+        messages.error(request, f"Unexpected error during ZK device upload: {e}")
 
     return False
