@@ -83,7 +83,23 @@
                     <p>View and manage biometric devices</p>
                 </a>
             </div>
+            <div class="equipment-row">
+                <a href="{% url 'all_servers' %}" class="equipment-btn branch-card">
+                    <i class="fa-solid fa-database" style="font-size:60px;"></i>
+                    <h3>Servers</h3>
+                    <br>
+                    <p>View and manage physical servers</p>
+                </a>
+            </div>
 
+            <div class="equipment-row">
+                <a href="{% url 'all_vms' %}" class="equipment-btn branch-card">
+                    <i class="fa-solid fa-microchip" style="font-size:60px;"></i>
+                    <h3>Virtual Machines</h3>
+                    <br>
+                    <p>View and manage virtualized resources</p>
+                </a>
+            </div>
         </div>
 
         <a href="{% url 'branches' %}" class="back-btn">

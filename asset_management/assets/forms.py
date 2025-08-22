@@ -1,4 +1,4 @@
-# admin.py
+
 from django import forms
 from django.apps import apps
 from django.core.exceptions import ValidationError
@@ -17,9 +17,11 @@ from .models import (
     ReportableModel,
     Router,
     Screen,
+    Server,
     StorageDevice,
     Switch,
     Telephone,
+    VirtualMachine,
     ZKDevice,
 )
 
@@ -558,3 +560,116 @@ class ZKDeviceEditForm(forms.ModelForm, FieldBehaviorMixin):
             self.add_error('location', "Location is required when status is 'In Use'.")
         return cleaned_data
 
+
+class ServerForm(forms.ModelForm):
+    class Meta:
+        model = Server
+        exclude = ['created_by', 'created_at', 'updated_at', 'available_cpu', 'available_ram_gb', 'available_storage_gb']
+        widgets = {
+            'purchase_date': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    field_order = [
+        'hostname', 'ip_address', 'cpu_cores', 'ram_gb', 'storage_gb',
+        'operating_system', 'location', 'purchase_date', 'comment'
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['hostname'].required = True
+        self.fields['ip_address'].required = True
+        self.fields['cpu_cores'].required = True
+        self.fields['ram_gb'].required = True
+        self.fields['storage_gb'].required = True
+
+
+class ServerEditForm(forms.ModelForm, FieldBehaviorMixin):
+    class Meta:
+        model = Server
+        exclude = ['created_by', 'created_at', 'updated_at', 'available_cpu', 'available_ram_gb', 'available_storage_gb']
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        self.apply_field_behaviors('Server', user)
+
+class VirtualMachineForm(forms.ModelForm):
+    class Meta:
+        model = VirtualMachine
+        exclude = ['created_by', 'created_at', 'updated_at']
+        widgets = {
+            'created_at': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+    field_order = [
+        'server','name', 'ip_address',   'vram_gb',
+        'storage_gb','vcpu','operating_system',
+        'status', 'environment','comment'
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['name'].required = True
+        self.fields['ip_address'].required = True
+        self.fields['vcpu'].required = True
+        self.fields['vram_gb'].required = True
+        self.fields['storage_gb'].required = True
+        self.fields['operating_system'].required = True
+
+    def clean(self):
+        cleaned_data = super().clean()
+        server = cleaned_data.get("server")
+        vcpu = cleaned_data.get("vcpu") or 0
+        vram = cleaned_data.get("vram_gb") or 0
+        storage = cleaned_data.get("storage_gb") or 0
+
+        if server:
+            if vcpu > server.available_cpu_cores:
+                self.add_error("vcpu", f"Server only has {server.available_cpu_cores} CPU cores available.")
+            if vram > server.available_ram_gb:
+                self.add_error("vram_gb", f"Server only has {server.available_ram_gb} GB RAM available.")
+            if storage > server.available_storage_gb:
+                self.add_error("storage_gb", f"Server only has {server.available_storage_gb} GB storage available.")
+
+        return cleaned_data
+
+
+
+
+
+
+class VirtualMachineEditForm(forms.ModelForm, FieldBehaviorMixin):
+    class Meta:
+        model = VirtualMachine
+        exclude = ['created_by', 'created_at', 'updated_at']
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        self.apply_field_behaviors('VirtualMachine', user)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        server = cleaned_data.get("server")
+        vcpu = cleaned_data.get("vcpu") or 0
+        vram = cleaned_data.get("vram_gb") or 0
+        storage = cleaned_data.get("storage_gb") or 0
+
+        if server:
+            # Include this VM's current allocation to avoid double-counting
+            current_cpu = getattr(self.instance, "vcpu", 0)
+            current_ram = getattr(self.instance, "vram_gb", 0)
+            current_storage = getattr(self.instance, "storage_gb", 0)
+
+            available_cpu = server.available_cpu_cores + current_cpu
+            available_ram = server.available_ram_gb + current_ram
+            available_storage = server.available_storage_gb + current_storage
+
+            if vcpu > available_cpu:
+                self.add_error("vcpu", f"Server only has {available_cpu} CPU cores available.")
+            if vram > available_ram:
+                self.add_error("vram_gb", f"Server only has {available_ram} GB RAM available.")
+            if storage > available_storage:
+                self.add_error("storage_gb", f"Server only has {available_storage} GB storage available.")
+
+        return cleaned_data

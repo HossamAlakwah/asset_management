@@ -21,10 +21,14 @@ from .models import (
     RouterLog,
     Screen,
     ScreenLog,
+    Server,
+    ServerLog,
     Switch,
     SwitchLog,
     Telephone,
     TelephoneLog,
+    VirtualMachine,
+    VirtualMachineLog,
     ZKDevice,
     ZKDeviceLog,
 )
@@ -335,4 +339,58 @@ class ZKDeviceLogAdmin(admin.ModelAdmin):
     list_filter = ('new_status', 'new_branch', 'change_time')
     ordering = ('-change_time',)
     list_select_related = ('device', 'changed_by', 'old_branch', 'new_branch')
+    readonly_fields = ('change_time',)
+
+'''
+Servers & Virtual Machines
+'''
+
+
+@admin.register(Server)
+class ServerAdmin(admin.ModelAdmin):
+    list_display = (
+        'hostname', 'serial_number', 'cpu_cores', 'ram_gb',
+        'storage_gb', 'hypervisor', 'status', 'branch', 'created_at'
+    )
+    search_fields = ('hostname', 'serial_number')
+    list_filter = ('hypervisor', 'status', 'branch')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('-created_at',)
+
+
+@admin.register(ServerLog)
+class ServerLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'server', 'changed_by', 'change_time',
+        'old_status', 'new_status',
+        'old_location', 'new_location',
+        'old_branch', 'new_branch'
+    )
+    list_filter = ('new_status', 'new_branch', 'change_time')
+    search_fields = ('server__hostname', 'server__serial_number', 'changed_by__username')
+    readonly_fields = ('change_time',)
+
+
+@admin.register(VirtualMachine)
+class VirtualMachineAdmin(admin.ModelAdmin):
+    list_display = (
+        'name', 'server', 'ip_address', 'operating_system',
+        'vcpu', 'vram_gb', 'storage_gb', 'environment',
+        'status', 'created_at'
+    )
+    search_fields = ('name', 'ip_address', 'operating_system', 'server__hostname')
+    list_filter = ('environment', 'status', 'server')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('server', 'name')
+
+
+@admin.register(VirtualMachineLog)
+class VirtualMachineLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'vm', 'old_status', 'new_status',
+        'changed_by', 'change_time'
+    )
+    list_filter = ('new_status', 'changed_by', 'change_time')
+    search_fields = ('vm__name', 'vm__server__hostname', 'changed_by__username')
+    ordering = ('-change_time',)
     readonly_fields = ('change_time',)

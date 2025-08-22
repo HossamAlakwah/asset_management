@@ -781,3 +781,125 @@ def log_zkdevice_delete(sender, instance, **kwargs):
         comment=instance.comment,
         change_time=timezone.now()
     )
+
+from django.contrib.auth.models import User
+from django.db.models.signals import post_delete, post_save, pre_save
+from django.dispatch import receiver
+from django.utils import timezone
+
+from .models import Server, ServerLog, VirtualMachine, VirtualMachineLog
+
+
+def update_server_resources(server: Server):
+    """Recalculate server available resources based on VMs."""
+    allocated_cpu = sum(vm.vcpu for vm in server.vms.all())
+    allocated_ram = sum(vm.vram_gb for vm in server.vms.all())
+    allocated_storage = sum(vm.storage_gb for vm in server.vms.all())
+
+    server.available_cpu_cores = max(server.cpu_cores - allocated_cpu, 0)
+    server.available_ram_gb = max(server.ram_gb - allocated_ram, 0)
+    server.available_storage_gb = max(server.storage_gb - allocated_storage, 0)
+    server.save(update_fields=["available_cpu_cores", "available_ram_gb", "available_storage_gb"])
+
+
+"""
+🔹 VirtualMachine signals
+"""
+@receiver(pre_save, sender=VirtualMachine)
+def log_vm_changes(sender, instance, **kwargs):
+    if instance.pk:  # Updating existing VM
+        old_vm = VirtualMachine.objects.get(pk=instance.pk)
+        changes = {}
+
+        if old_vm.status != instance.status:
+            changes["old_status"] = old_vm.status
+            changes["new_status"] = instance.status
+
+        if old_vm.vcpu != instance.vcpu or old_vm.vram_gb != instance.vram_gb or old_vm.storage_gb != instance.storage_gb:
+            changes["comment"] = f"Resources updated (CPU {old_vm.vcpu}->{instance.vcpu}, RAM {old_vm.vram_gb}->{instance.vram_gb}, Storage {old_vm.storage_gb}->{instance.storage_gb})"
+
+        if changes:
+            VirtualMachineLog.objects.create(
+                vm=instance,
+                old_status=changes.get("old_status"),
+                new_status=changes.get("new_status", instance.status),
+                change_time=timezone.now(),
+                comment=changes.get("comment"),
+            )
+
+
+@receiver(post_save, sender=VirtualMachine)
+def update_server_on_vm_save(sender, instance, created, **kwargs):
+    update_server_resources(instance.server)
+    if created:
+        VirtualMachineLog.objects.create(
+            vm=instance,
+            old_status=None,
+            new_status=instance.status,
+            change_time=timezone.now(),
+            comment="VM created",
+        )
+
+
+@receiver(post_delete, sender=VirtualMachine)
+def update_server_on_vm_delete(sender, instance, **kwargs):
+    update_server_resources(instance.server)
+    VirtualMachineLog.objects.create(
+        vm=instance,
+        old_status=instance.status,
+        new_status="deleted",
+        change_time=timezone.now(),
+        comment="VM deleted",
+    )
+
+
+"""
+🔹 Server signals
+"""
+
+@receiver(pre_save, sender=Server)
+def log_server_changes(sender, instance, **kwargs):
+    TRACK_FIELDS = ['ip_address', 'cpu_cores', 'ram_gb', 'storage_gb']
+
+    if not instance.pk:
+        return  # Skip creation, handled in post_save if needed
+
+    try:
+        old_server = Server.objects.get(pk=instance.pk)
+    except Server.DoesNotExist:
+        return
+
+    changes = {}
+    for field in TRACK_FIELDS:
+        old_value = getattr(old_server, field)
+        new_value = getattr(instance, field)
+        if old_value != new_value:
+            changes[field] = (old_value, new_value)
+
+    if changes:
+        ServerLog.objects.create(
+            server=instance,
+            change_time=timezone.now(),
+            old_ip_address=changes.get('ip_address', (None, None))[0],
+            new_ip_address=changes.get('ip_address', (None, None))[1],
+            old_cpu=changes.get('cpu_cores', (None, None))[0],
+            new_cpu=changes.get('cpu_cores', (None, None))[1],
+            old_ram=changes.get('ram_gb', (None, None))[0],
+            new_ram=changes.get('ram_gb', (None, None))[1],
+            old_storage=changes.get('storage_gb', (None, None))[0],
+            new_storage=changes.get('storage_gb', (None, None))[1],
+            changed_by=getattr(instance, "_changed_by", None),
+            comment="; ".join([f"{k} {v[0]}->{v[1]}" for k, v in changes.items()])
+        )
+
+@receiver(post_save, sender=VirtualMachine)
+def update_server_resources_on_save(sender, instance, **kwargs):
+    """Update server resources after a VM is created or updated"""
+    if instance.server:
+        instance.server.update_available_resources()
+
+@receiver(post_delete, sender=VirtualMachine)
+def update_server_resources_on_delete(sender, instance, **kwargs):
+    """Update server resources after a VM is deleted"""
+    if instance.server:
+        instance.server.update_available_resources()

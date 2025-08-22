@@ -14,7 +14,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q, Sum
 from django.forms import inlineformset_factory
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -49,7 +49,7 @@ from .extract_date import (
     generate_ups_report,
     generate_zk_report,
 )
-from .forms import (
+from .forms import (  # ✅ assuming you already created these
     AccessPointEditForm,
     AccessPointForm,
     AssetForm,
@@ -63,12 +63,16 @@ from .forms import (
     RouterEditForm,
     RouterForm,
     ScreenForm,
+    ServerEditForm,
+    ServerForm,
     StorageDeviceFormSet,
     SwitchEditForm,
     SwitchForm,
     TelephoneForm,
     UPSEditForm,
     UPSForm,
+    VirtualMachineEditForm,
+    VirtualMachineForm,
     ZKDeviceEditForm,
     ZKDeviceForm,
 )
@@ -93,12 +97,16 @@ from .models import (
     RouterLog,
     Screen,
     ScreenLog,
+    Server,
+    ServerLog,
     StorageDevice,
     Switch,
     SwitchLog,
     Telephone,
     TelephoneLog,
     UPSLog,
+    VirtualMachine,
+    VirtualMachineLog,
     ZKDevice,
     ZKDeviceLog,
 )
@@ -2687,3 +2695,125 @@ def extract_zk_devices(request, slug):
     selected_format = request.POST.get('format')
 
     return generate_zk_report(request, branch, selected_status, selected_format)
+
+'''
+Servers Part
+'''
+# List all servers
+def all_servers(request):
+    servers = Server.objects.all().order_by("hostname")
+
+    return render(request, "infra/servers/all_servers.html", {"servers": servers})
+
+# Server details with nested VMs
+def server_details(request, server_id):
+    server = get_object_or_404(Server, id=server_id)
+    vms = server.vms.all().order_by("name")  # ✅ nested VMs
+    return render(request, "infra/servers/server_details.html", {
+        "server": server,
+        "vms": vms
+    })
+
+# Add a new server
+def add_server(request):
+    if request.method == "POST":
+        form = ServerForm(request.POST)
+        if form.is_valid():
+            server = form.save(commit=False)
+            server._changed_by = request.user  # Track the user
+            server.save()
+            messages.success(request, f"Server {server.hostname} added successfully.")
+            return redirect("all_servers")
+    else:
+        form = ServerForm()
+    return render(request, "infra/servers/server_create.html", {"form": form})
+# views.py
+
+def server_resources(request, server_id):
+    try:
+        server = Server.objects.get(pk=server_id)
+    except Server.DoesNotExist:
+        raise Http404("Server not found")
+    data = {
+        "available_cpu": server.available_cpu_cores,
+        "available_ram": server.available_ram_gb,
+        "available_storage": server.available_storage_gb,
+    }
+    return JsonResponse(data)
+
+# Add a new server
+def edit_server(request, server_id):
+    server = get_object_or_404(Server, id=server_id)
+    if request.method == "POST":
+        form = ServerEditForm(request.POST, instance=server)  # ✅ use ServerEditForm
+        if form.is_valid():
+            server = form.save(commit=False)
+            server._changed_by = request.user  # Track the user
+            server.save()
+            messages.success(request, f"Server {server.hostname} updated successfully.")
+            return redirect("server_details", server_id=server.id)
+        else:
+            print(form.errors)
+    else:
+        form = ServerEditForm(instance=server)  # ✅
+    return render(request, "infra/servers/edit_server.html", {"form": form, "server": server})
+
+
+
+# Logs for a specific server
+
+def server_logs(request):
+    logs = ServerLog.objects.all().order_by('-change_time')  # Adjust model name & field
+    return render(request, "infra/servers/server_logs.html", {"logs": logs})
+
+
+'''
+VMs part
+'''
+# List all VMs
+def all_vms(request):
+    vms = VirtualMachine.objects.select_related("server").all().order_by("server__hostname", "name")
+    return render(request, "infra/vms/all_vms.html", {"vms": vms})
+
+# VM details with link back to parent server
+def vm_details(request, vm_id):
+    vm = get_object_or_404(VirtualMachine, id=vm_id)
+    return render(request, "infra/vms/vm_details.html", {"vm": vm, "server": vm.server})
+
+# Add a new VM
+def add_vm(request):
+    if request.method == "POST":
+        form = VirtualMachineForm(request.POST)
+        if form.is_valid():
+            vm = form.save()
+            messages.success(
+                request, f"VM {vm.name} created successfully on {vm.server.hostname}."
+            )
+            return redirect("vm_details", vm_id=vm.id)
+    else:
+        form = VirtualMachineForm()
+    return render(request, "infra/vms/vm_create.html", {"form": form})
+
+# Edit an existing VM
+def edit_vm(request, vm_id):
+    vm = get_object_or_404(VirtualMachine, id=vm_id)
+
+    if request.method == "POST":
+        form = VirtualMachineEditForm(request.POST, instance=vm, user=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"VM {vm.name} updated successfully.")
+            return redirect("vm_details", vm_id=vm.id)
+    else:
+        form = VirtualMachineEditForm(instance=vm, user=request.user)
+
+    return render(request, "infra/vms/edit_vm.html", {
+        "form": form,
+        "vm": vm
+    })
+
+# Logs for a specific VM
+def vm_logs(request, vm_id):
+    vm = get_object_or_404(VirtualMachine, id=vm_id)
+    logs = vm.logs.all()
+    return render(request, "infra/vms/vm_logs.html", {"vm": vm, "logs": logs})

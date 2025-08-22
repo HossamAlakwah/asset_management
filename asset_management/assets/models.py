@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Sum
@@ -726,3 +727,144 @@ class ZKDeviceLog(InfraAssetLogBase):
 
     def __str__(self):
         return f"Log for {self.device.device_type} ({self.device.serial_number}) on {self.change_time.strftime('%Y-%m-%d %H:%M')}"
+    
+'''
+Server part
+'''
+
+
+class Server(InfraAsset):
+    HYPERVISOR_CHOICES = [
+        ("vmware", "VMware ESXi"),
+        ("hyperv", "Hyper-V"),
+    ]
+
+    hostname = models.CharField(max_length=100, unique=True)
+    cpu_cores = models.PositiveIntegerField(help_text="Total physical CPU cores")
+    ram_gb = models.PositiveIntegerField(help_text="Total RAM in GB")
+    storage_gb = models.PositiveIntegerField(help_text="Total storage in GB")
+    hypervisor = models.CharField(max_length=20, choices=HYPERVISOR_CHOICES)
+
+    # ✅ Track available resources
+    available_cpu_cores = models.PositiveIntegerField(default=0, editable=False)
+    available_ram_gb = models.PositiveIntegerField(default=0, editable=False)
+    available_storage_gb = models.PositiveIntegerField(default=0, editable=False)
+
+    def save(self, *args, **kwargs):
+        if not self.pk:  # only on create
+            self.available_cpu_cores = self.cpu_cores
+            self.available_ram_gb = self.ram_gb
+            self.available_storage_gb = self.storage_gb
+        super().save(*args, **kwargs)
+
+    def update_available_resources(self):
+        """Recalculate remaining resources based on assigned VMs"""
+        used_cpu = sum(vm.vcpu for vm in self.vms.all())
+        used_ram = sum(vm.vram_gb for vm in self.vms.all())
+        used_storage = sum(vm.storage_gb for vm in self.vms.all())
+
+        self.available_cpu_cores = max(self.cpu_cores - used_cpu, 0)
+        self.available_ram_gb = max(self.ram_gb - used_ram, 0)
+        self.available_storage_gb = max(self.storage_gb - used_storage, 0)
+
+        # ✅ Use update() to avoid recursion into save()
+        Server.objects.filter(pk=self.pk).update(
+            available_cpu_cores=self.available_cpu_cores,
+            available_ram_gb=self.available_ram_gb,
+            available_storage_gb=self.available_storage_gb,
+        )
+
+    def __str__(self):
+        return f"{self.hostname} ({self.serial_number})"
+    
+
+
+class ServerLog(InfraAssetLogBase):
+    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name="logs")
+    
+    old_ip_address = models.GenericIPAddressField(null=True, blank=True)
+    new_ip_address = models.GenericIPAddressField(null=True, blank=True)
+    
+    old_cpu = models.PositiveIntegerField(null=True, blank=True)
+    new_cpu = models.PositiveIntegerField(null=True, blank=True)
+    
+    old_ram = models.PositiveIntegerField(null=True, blank=True)
+    new_ram = models.PositiveIntegerField(null=True, blank=True)
+    
+    old_storage = models.PositiveIntegerField(null=True, blank=True)
+    new_storage = models.PositiveIntegerField(null=True, blank=True)
+
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=False)
+    change_time = models.DateTimeField(default=timezone.now)
+    
+    def __str__(self):
+        return f"Log for Server {self.server.hostname} on {self.change_time.strftime('%Y-%m-%d %H:%M')}"
+
+
+
+class VirtualMachine(models.Model):
+    ENV_CHOICES = [
+        ("uat", "UAT"),
+        ("prod", "Production"),
+        ("dev", "Development"),
+        ("test", "Testing"),
+    ]
+
+    server = models.ForeignKey(Server, on_delete=models.CASCADE, related_name="vms")
+    name = models.CharField(max_length=100)
+    ip_address = models.GenericIPAddressField(protocol="IPv4", blank=True, null=True)
+    operating_system = models.CharField(max_length=100, default="Linux")
+    vcpu = models.PositiveIntegerField(help_text="Allocated vCPUs")
+    vram_gb = models.PositiveIntegerField(help_text="Allocated RAM (GB)")
+    storage_gb = models.PositiveIntegerField(help_text="Allocated Storage (GB)")
+    environment = models.CharField(max_length=20, choices=ENV_CHOICES, default="prod")
+    status = models.CharField(max_length=20, choices=[("running", "Running"), ("stopped", "Stopped")], default="running")
+
+    comment = models.TextField(blank=True, null=True)  # ✅ Added
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("server", "name")
+        ordering = ["server", "name"]
+
+    def save(self, *args, **kwargs):
+        """Ensure server has enough available resources before saving"""
+        if not self.pk:  # only validate on create
+            print(self.vcpu)
+            print(self.server.available_cpu_cores)
+            print("-------------------------------")
+            if self.server.available_cpu_cores < self.vcpu:
+
+                raise ValueError("Not enough CPU cores available on this server.")
+            if self.server.available_ram_gb < self.vram_gb:
+                raise ValueError("Not enough RAM available on this server.")
+            if self.server.available_storage_gb < self.storage_gb:
+                raise ValueError("Not enough Storage available on this server.")
+
+        super().save(*args, **kwargs)
+        self.server.update_available_resources()
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, **kwargs)
+        self.server.update_available_resources()
+
+    def __str__(self):
+        return f"{self.name} ({self.environment}) on {self.server.hostname}"
+
+
+class VirtualMachineLog(models.Model):
+    vm = models.ForeignKey(VirtualMachine, on_delete=models.CASCADE, related_name="logs")
+    old_status = models.CharField(max_length=20, blank=True, null=True)
+    new_status = models.CharField(max_length=20)
+    changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    change_time = models.DateTimeField(default=timezone.now)
+    comment = models.TextField(blank=True, null=True)
+
+    class Meta:
+        ordering = ["-change_time"]
+
+    def __str__(self):
+        return f"Log for VM {self.vm.name} on {self.change_time.strftime('%Y-%m-%d %H:%M')}"
+

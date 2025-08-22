@@ -156,39 +156,23 @@ urlpatterns = [
     path('branches/<slug:slug>/extract-zk/', views.extract_zk_devices, name='extract_zk_devices_bulk'),
     path('zk/add/', views.add_zk_device, name='add_zk_device'),
     path('zk/template/download/', views.download_zk_template, name='download_zk_template'),
-
     
-    # # Telecom-Access Related
-    # path('telecom-access/', views.all_telecom_access, name='all_telecom_access'),
-    # path('branches/<slug:slug>/telecom-access/', views.branch_telecom_access, name='branch_telecom_access'),
-    # path('telecom-access/<int:item_id>/', views.telecom_access_details, name='telecom_access_details'),
-    # path('telecom-access/<int:item_id>/edit/', views.edit_telecom_access, name='edit_telecom_access'),
-    # path('logs/telecom-access/<slug:slug>/', views.all_telecom_access_log, name='all_telecom_access_log'),
-    # path('branches/<slug:slug>/upload-telecom-access/', views.upload_Telecom_Access, name='upload_telecom_access_bulk'),
-    # path('branches/<slug:slug>/extract-telecom-access/', views.extract_telecom_access_data, name='extract_telecom_access_bulk'),
-    
-    # # Cameras-Access Related
+    # === Servers ===
+    path('servers/', views.all_servers, name='all_servers'),
+    path('servers/add/', views.add_server, name='add_server'),
+    path('servers/<int:server_id>/', views.server_details, name='server_details'),
+    path('servers/<int:server_id>/edit/', views.edit_server, name='edit_server'),
+    path('servers/logs/', views.server_logs, name='server_logs'),
+    path("servers/<int:server_id>/resources/", views.server_resources, name="server_resources"),
 
-    # path('cameras/', views.all_cameras, name='all_cameras'),
-    # path('branches/<slug:slug>/cameras/', views.branch_cameras, name='branch_cameras'),
-    # path('cameras/<int:item_id>/', views.cameras_details, name='camera_details'),
-    # path('cameras/<int:item_id>/edit/', views.edit_cameras, name='edit_cameras'),
-    # path('logs/cameras/<slug:slug>/', views.all_cameras_log, name='all_cameras_log'),
-    # path('branches/<slug:slug>/upload-cameras/', views.upload_cameras, name='upload_cameras_bulk'),
-    # path('branches/<slug:slug>/extract-cameras/', views.extract_cameras_data, name='extract_cameras_bulk'),
-    
-    # # Network equipment
+    # === On-Premises Virtual Machines ===
+    path('vms/', views.all_vms, name='all_vms'),
+    path('vms/add/', views.add_vm, name='add_vm'),
+    path('vms/<int:vm_id>/', views.vm_details, name='vm_details'),
+    path('vms/<int:vm_id>/edit/', views.edit_vm, name='edit_vm'),
+    path('logs/vms/<int:vm_id>/', views.vm_logs, name='vm_logs'),
 
-    # path('network_equipment/', views.all_network_equipment, name='all_network_equipment'),
-    # # path('branches/<slug:slug>/network_equipment/', views.network_equipment, name='branch_network_equipment'),
-    # # path('network_equipment/<int:item_id>/', views.network_equipment_details, name='network_equipment_details'),
-    # # path('network_equipment/<int:item_id>/edit/', views.edit_network_equipment, name='edit_network_equipment'),
-    # path('logs/network_equipment/<slug:slug>/', views.all_network_equipment_log, name='all_network_equipment_log'),
-    # path('branches/<slug:slug>/upload-network_equipment/', views.upload_network_equipment, name='upload_network_equipment_bulk'),
-    # path('branches/<slug:slug>/extract-network_equipment/', views.extract_network_equipment_data, name='extract_network_equipment_bulk'),
-    # # Auth
-    # path('consumables/', views.consumables_dashboard, name='consumables_dashboard'),
-    # path('consumables/import/', views.import_consumables, name='import_consumables'),
+
     path('logout/', views.logout_view, name='logout'),
 ]
 

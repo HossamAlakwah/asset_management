@@ -1,0 +1,35 @@
+2025-08-11 10:00:35 - ✅ Successfully fetched data from Oracle PROD DB.
+2025-08-11 10:00:37 - ✅ Email sent successfully!
+2025-08-11 10:00:37 - ----------------------------------
+2025-08-11 10:02:10 - ✅ Successfully fetched data from Oracle PROD DB.
+2025-08-11 10:02:13 - ✅ Email sent successfully!
+2025-08-11 10:02:13 - ----------------------------------
+2025-08-11 10:05:16 - ✅ Successfully fetched data from Oracle PROD DB.
+2025-08-11 10:05:34 - ✅ Successfully fetched data from Oracle PROD DB.
+2025-08-11 10:05:36 - ✅ Email sent successfully!
+2025-08-11 10:05:36 - ----------------------------------
+2025-08-11 10:07:35 - ✅ Successfully fetched data from Oracle PROD DB.
+2025-08-11 10:07:39 - ✅ Email sent successfully!
+2025-08-11 10:07:39 - ----------------------------------
+2025-08-11 10:09:01 - ✅ Successfully fetched data from Oracle PROD DB.
+2025-08-11 10:09:02 - ✅ Email sent successfully!
+2025-08-11 10:09:02 - ----------------------------------
+2025-08-11 10:12:33 - ✅ Successfully fetched data from Oracle PROD DB.
+2025-08-11 10:12:35 - ✅ Email sent successfully!
+2025-08-11 10:12:35 - ----------------------------------
+2025-08-11 10:13:42 - ✅ Successfully fetched data from Oracle PROD DB.
+2025-08-11 10:13:44 - ✅ Email sent successfully!
+2025-08-11 10:13:44 - ----------------------------------
+2025-08-11 10:16:09 - ✅ Successfully fetched data from Oracle PROD DB.
+2025-08-11 10:16:11 - ✅ Email sent successfully!
+2025-08-11 10:16:11 - ----------------------------------
+2025-08-11 10:19:56 - ✅ Successfully fetched data from Oracle PROD DB.
+2025-08-11 10:19:58 - ✅ Email sent successfully!
+2025-08-11 10:19:58 - ----------------------------------
+2025-08-11 10:21:01 - ✅ Successfully fetched data from Oracle PROD DB.
+2025-08-11 10:21:02 - ✅ Email sent successfully!
+2025-08-11 10:21:02 - ----------------------------------
+2025-08-11 10:25:03 - ✅ Successfully fetched data from Oracle UAT DB.
+2025-08-11 10:25:05 - ✅ Email sent successfully.
+2025-08-11 10:27:12 - ✅ Successfully fetched data from Oracle UAT DB.
+2025-08-11 10:27:13 - ✅ Email sent successfully.

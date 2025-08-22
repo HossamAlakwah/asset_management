@@ -1,4 +1,5 @@
 import io
+from asyncio import Server
 
 import xlsxwriter
 from django.contrib import messages
@@ -20,6 +21,7 @@ from .models import (
     Screen,
     Switch,
     Telephone,
+    VirtualMachine,
     ZKDevice,
 )
 
@@ -1986,3 +1988,153 @@ def generate_zk_report(request, branch, selected_status, selected_format):
     else:
         messages.error(request, "Unsupported format for extraction.")
         return redirect('all_zk_devices') 
+
+'''
+the servers report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch and returns it in the requested format.'''
+def generate_servers_report(request, branch, selected_format):
+    if str(branch) == "All":
+        servers = Server.objects.all()
+    else:
+        servers = Server.objects.filter(branch=branch)
+
+    if not servers.exists():
+        messages.warning(request, "No servers found for the selected filters.")
+        return None
+
+    headers = [
+        "Hostname", "Hypervisor",
+        "CPU (Total)", "CPU (Available)",
+        "RAM (Total GB)", "RAM (Available GB)",
+        "Storage (Total GB)", "Storage (Available GB)",
+        "Branch"
+    ]
+
+    if selected_format == "excel":
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {"in_memory": True})
+        worksheet = workbook.add_worksheet()
+
+        title_format = workbook.add_format({"bold": True, "font_size": 16, "align": "center"})
+        header_format = workbook.add_format({"bold": True, "bg_color": "#1f497d", "font_color": "white", "border": 1})
+
+        report_branch_name = branch.name if hasattr(branch, "name") else str(branch)
+        worksheet.merge_range(0, 0, 0, len(headers)-1, f"Servers Report for {report_branch_name}", title_format)
+
+        worksheet.write_row(1, 0, headers, header_format)
+
+        for row_num, server in enumerate(servers, start=2):
+            worksheet.write_row(row_num, 0, [
+                server.hostname,
+                server.get_hypervisor_display(),
+                server.cpu_cores,
+                server.available_cpu_cores,
+                server.ram_gb,
+                server.available_ram_gb,
+                server.storage_gb,
+                server.available_storage_gb,
+                str(server.branch),
+            ])
+
+        workbook.close()
+        output.seek(0)
+        response = HttpResponse(
+            output.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="servers_report.xlsx"'
+        return response
+
+    elif selected_format == "html":
+        html = "<h2>Servers Report</h2><table border='1'><tr>" + "".join(f"<th>{h}</th>" for h in headers) + "</tr>"
+        for server in servers:
+            html += "<tr>" + "".join(f"<td>{escape(val)}</td>" for val in [
+                server.hostname,
+                server.get_hypervisor_display(),
+                server.cpu_cores,
+                server.available_cpu_cores,
+                server.ram_gb,
+                server.available_ram_gb,
+                server.storage_gb,
+                server.available_storage_gb,
+                str(server.branch),
+            ]) + "</tr>"
+        html += "</table>"
+        return HttpResponse(html)
+
+'''
+the VMs report function to handle both HTML and Excel formats
+This function generates a report based on the selected branch, status and returns it in the requested format.'''
+def generate_vms_report(request, branch, selected_status, selected_format):
+    if str(branch) == "All":
+        vms = VirtualMachine.objects.all()
+    else:
+        vms = VirtualMachine.objects.filter(server__branch=branch)
+
+    if selected_status and selected_status != "All":
+        vms = vms.filter(status=selected_status)
+
+    if not vms.exists():
+        messages.warning(request, "No VMs found for the selected filters.")
+        return None
+
+    headers = [
+        "VM Name", "Server", "Environment", "Status",
+        "IP Address", "Operating System",
+        "vCPUs", "vRAM (GB)", "Storage (GB)",
+        "Branch"
+    ]
+
+    if selected_format == "excel":
+        output = io.BytesIO()
+        workbook = xlsxwriter.Workbook(output, {"in_memory": True})
+        worksheet = workbook.add_worksheet()
+
+        title_format = workbook.add_format({"bold": True, "font_size": 16, "align": "center"})
+        header_format = workbook.add_format({"bold": True, "bg_color": "#1f497d", "font_color": "white", "border": 1})
+
+        report_branch_name = branch.name if hasattr(branch, "name") else str(branch)
+        worksheet.merge_range(0, 0, 0, len(headers)-1, f"VMs Report for {report_branch_name}", title_format)
+
+        worksheet.write_row(1, 0, headers, header_format)
+
+        for row_num, vm in enumerate(vms, start=2):
+            worksheet.write_row(row_num, 0, [
+                vm.name,
+                vm.server.hostname,
+                vm.get_environment_display(),
+                vm.get_status_display(),
+                vm.ip_address or "-",
+                vm.operating_system,
+                vm.vcpu,
+                vm.vram_gb,
+                vm.storage_gb,
+                str(vm.server.branch),
+            ])
+
+        workbook.close()
+        output.seek(0)
+        response = HttpResponse(
+            output.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="vms_report.xlsx"'
+        return response
+
+    elif selected_format == "html":
+        html = "<h2>VMs Report</h2><table border='1'><tr>" + "".join(f"<th>{h}</th>" for h in headers) + "</tr>"
+        for vm in vms:
+            html += "<tr>" + "".join(f"<td>{escape(val)}</td>" for val in [
+                vm.name,
+                vm.server.hostname,
+                vm.get_environment_display(),
+                vm.get_status_display(),
+                vm.ip_address or "-",
+                vm.operating_system,
+                vm.vcpu,
+                vm.vram_gb,
+                vm.storage_gb,
+                str(vm.server.branch),
+            ]) + "</tr>"
+        html += "</table>"
+        return HttpResponse(html)
