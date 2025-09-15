@@ -11,6 +11,7 @@ from .models import (
     AccessPoint,
     Asset,
     Camera,
+    Employee,
     Firewall,
     RayaDataCenterVM,
     ReportableField,
@@ -673,3 +674,17 @@ class VirtualMachineEditForm(forms.ModelForm, FieldBehaviorMixin):
                 self.add_error("storage_gb", f"Server only has {available_storage} GB storage available.")
 
         return cleaned_data
+
+from django import forms
+
+from .models import NotificationConfig, NotificationRecipient
+
+
+class NotificationConfigForm(forms.ModelForm):
+    class Meta:
+        model = NotificationConfig
+        fields = '__all__'  
+class NotificationRecipientForm(forms.ModelForm):
+    class Meta:
+        model = NotificationRecipient
+        fields = '__all__'

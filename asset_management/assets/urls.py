@@ -172,6 +172,14 @@ urlpatterns = [
     path('vms/<int:vm_id>/edit/', views.edit_vm, name='edit_vm'),
     path('logs/vms/<int:vm_id>/', views.vm_logs, name='vm_logs'),
 
+    # === Notification for low stock ===
+    path('notifications/add/', views.NotificationConfigCreateView.as_view(), name='notification_config_create'),
+    path('notifications/<int:pk>/edit/', views.NotificationConfigUpdateView.as_view(), name='notification_config_update'),
+    path('notifications/<int:pk>/delete/', views.NotificationConfigDeleteView.as_view(), name='notification_config_delete'),
+    path('notifications/recipients/add/', views.RecipientCreateView.as_view(), name='recipient_create'),
+    path('notifications/recipients/<int:pk>/edit/', views.RecipientUpdateView.as_view(), name='recipient_update'),
+    path('notifications/recipients/<int:pk>/delete/', views.RecipientDeleteView.as_view(), name='recipient_delete'),
+    path('notifications/dashboard/', views.NotificationDashboardView.as_view(), name='notification_dashboard'),
 
     path('logout/', views.logout_view, name='logout'),
 ]

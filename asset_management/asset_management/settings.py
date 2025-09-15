@@ -94,7 +94,7 @@ DATABASES = {
         'NAME': 'assets',    
         'USER': 'postgres',            
         'PASSWORD': '22122001',     
-        'HOST': '10.1.50.3',              
+        'HOST': '10.1.50.23',              
         'PORT': '5432',                   
     }
 }
@@ -148,4 +148,14 @@ LOGIN_URL = '/'
 LOGIN_REDIRECT_URL = '/assets/branches/'  # after successful login
 LOGOUT_REDIRECT_URL = '/'  # send to login page after logout
 
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development
+# settings.py
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  
+EMAIL_HOST = 'smtp.office365.com'  
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "ITServiceDesk@misrlifetakaful.com"
+EMAIL_HOST_PASSWORD = "Roma@2025"
+# CRITICAL: Set the FROM address to match your authenticated account
+DEFAULT_FROM_EMAIL = "ITServiceDesk@misrlifetakaful.com"
+SERVER_EMAIL = "ITServiceDesk@misrlifetakaful.com"

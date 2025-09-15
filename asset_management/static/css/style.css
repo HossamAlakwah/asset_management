@@ -957,3 +957,14 @@ textarea.form-control {
     background: linear-gradient(135deg, #c92a2a, #a82323);
     color: white;
 }
+
+.notification-section h2 {
+    font-size: 1.8rem;
+    color: white;
+    margin: 40px 0 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent-color);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}

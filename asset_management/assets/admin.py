@@ -394,3 +394,26 @@ class VirtualMachineLogAdmin(admin.ModelAdmin):
     search_fields = ('vm__name', 'vm__server__hostname', 'changed_by__username')
     ordering = ('-change_time',)
     readonly_fields = ('change_time',)
+
+from django.contrib import admin
+
+from .models import NotificationConfig, NotificationRecipient, SentNotification
+
+
+@admin.register(NotificationConfig)
+class NotificationConfigAdmin(admin.ModelAdmin):
+    list_display = ['model_name', 'condition_type', 'condition_value', 'is_active']
+    list_filter = ['model_name', 'condition_type', 'is_active']
+    search_fields = ['model_name', 'condition_value']
+
+@admin.register(NotificationRecipient)
+class NotificationRecipientAdmin(admin.ModelAdmin):
+    list_display = ['email', 'is_active']
+    list_filter = ['is_active', 'models_to_notify']
+    filter_horizontal = ['models_to_notify']
+
+@admin.register(SentNotification)
+class SentNotificationAdmin(admin.ModelAdmin):
+    list_display = ['config', 'recipient', 'triggered_by', 'sent_at']
+    list_filter = ['config', 'sent_at']
+    readonly_fields = ['config', 'recipient', 'triggered_by', 'message', 'sent_at']

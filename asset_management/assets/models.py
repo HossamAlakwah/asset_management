@@ -868,3 +868,58 @@ class VirtualMachineLog(models.Model):
     def __str__(self):
         return f"Log for VM {self.vm.name} on {self.change_time.strftime('%Y-%m-%d %H:%M')}"
 
+###
+# models.py
+class NotificationConfig(models.Model):
+    MODEL_CHOICES = [
+        ('Asset', 'Asset'),
+        ('Screen', 'Screen'),
+        ('Telephone', 'Telephone'),
+        ('Camera', 'Camera'),
+        ('NVR', 'NVR'),
+        ('Firewall', 'Firewall'),
+        ('Switch', 'Switch'),
+        ('AccessPoint', 'Access Point'),
+        ('Router', 'Router'),
+        ('UPS', 'UPS'),
+        ('ZKDevice', 'ZK Device'),
+        ('Server', 'Server'),
+    ]
+    
+    model_name = models.CharField(max_length=50, choices=MODEL_CHOICES)
+    condition_type = models.CharField(max_length=20, choices=[
+        ('stock_count', 'Stock Count'),
+
+    ])
+    condition_value = models.CharField(max_length=100, 
+        help_text="For stock: number, for status: status value, for warranty: days before expiry")
+    is_active = models.BooleanField(default=True)
+    notification_message = models.TextField(blank=True, 
+        help_text="Custom message for the notification. Use {model}, {count}, {threshold} as variables")
+    
+    class Meta:
+        unique_together = ('model_name', 'condition_type', 'condition_value')
+    
+    def __str__(self):
+        return f"{self.model_name} - {self.condition_type} - {self.condition_value}"
+
+
+class NotificationRecipient(models.Model):
+    email = models.EmailField(unique=True)
+    is_active = models.BooleanField(default=True)
+    models_to_notify = models.ManyToManyField(NotificationConfig, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.email
+
+
+class SentNotification(models.Model):
+    config = models.ForeignKey(NotificationConfig, on_delete=models.CASCADE)
+    recipient = models.ForeignKey(NotificationRecipient, on_delete=models.CASCADE)
+    triggered_by = models.CharField(max_length=200)  # Which object triggered the notification
+    message = models.TextField()
+    sent_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-sent_at']

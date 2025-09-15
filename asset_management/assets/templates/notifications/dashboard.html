@@ -1,0 +1,321 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification Management Dashboard</title>
+    <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.7.2/css/all.css">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+    <style>
+        /* Additional styles that complement your existing CSS */
+        .notification-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .notification-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: var(--box-shadow);
+            transition: var(--transition);
+        }
+        
+        .notification-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .notification-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 5px;
+            width: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .model-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+        }
+        
+        .model-tag {
+            background: rgba(67, 97, 238, 0.3);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            backdrop-filter: blur(5px);
+        }
+        
+        .status-active {
+            background-color: rgba(46, 125, 50, 0.5);
+            color: #e6f7e9;
+            border: 1px solid rgba(46, 125, 50, 0.5);
+        }
+        
+        .status-inactive {
+            background-color: rgba(108, 117, 125, 0.5);
+            color: #f8f9fa;
+            border: 1px solid rgba(108, 117, 125, 0.5);
+        }
+        
+        .action-icons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .action-icons a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: var(--transition);
+            text-decoration: none;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .action-icons a:hover {
+            background: var(--primary-color);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .quick-actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <div class="header">
+        <h1 class="title">
+            <i class="fas fa-bell"></i> Notification Management Dashboard
+        </h1>
+        <p class="header-subtitle">Manage email alerts for low stock levels across all asset types</p>
+        <a href="{% url 'branches' %}" class="header-back-btn">
+            <i class="fas fa-arrow-left"></i> Back to Branches
+        </a>
+    </div>
+
+    <div class="container">
+        <!-- DASHBOARD STATS -->
+        <div class="dashboard-stats">
+            <div class="stat-card">
+                <div class="stat-number">{{ configs.count }}</div>
+                <div class="stat-label">Active Configurations</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">{{ recipients.count }}</div>
+                <div class="stat-label">Notification Recipients</div>
+            </div>
+
+        </div>
+
+        <!-- NOTIFICATION CONFIGURATIONS -->
+        <div class="glass-card card-accent-top">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <i class="fas fa-cog"></i> Notification Configurations
+                </h2>
+                <a href="{% url 'notification_config_create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus-circle"></i> Add New Configuration
+                </a>
+            </div>
+
+            <div class="table-container">
+                <table class="equipment-table">
+                    <thead>
+                        <tr>
+                            <th>Model Type</th>
+                            <th>Condition</th>
+                            <th>Threshold</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for config in configs %}
+                        <tr>
+                            <td>
+                                <strong>{{ config.get_model_name_display }}</strong>
+                            </td>
+                            <td>{{ config.get_condition_type_display }}</td>
+                            <td>
+                                <span class="model-tag">{{ config.condition_value }}</span>
+                            </td>
+                            <td>
+                                <span class="status-badge {% if config.is_active %}status-active{% else %}status-inactive{% endif %}">
+                                    <i class="fas {% if config.is_active %}fa-check-circle{% else %}fa-times-circle{% endif %}"></i>
+                                    {{ config.is_active|yesno:"Active,Inactive" }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="action-icons">
+                                    <a href="{% url 'notification_config_update' config.pk %}" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'notification_config_delete' config.pk %}" title="Delete">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="empty-state">
+                                <i class="fas fa-bell-slash"></i>
+                                <p>No notification configurations found.</p>
+                                <a href="{% url 'notification_config_create' %}" class="btn btn-primary">
+                                    <i class="fas fa-plus-circle"></i> Create Your First Configuration
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- NOTIFICATION RECIPIENTS -->
+        <div class="glass-card card-accent-top">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <i class="fas fa-users"></i> Notification Recipients
+                </h2>
+                <a href="{% url 'recipient_create' %}" class="btn btn-primary">
+                    <i class="fas fa-user-plus"></i> Add New Recipient
+                </a>
+            </div>
+
+            <div class="table-container">
+                <table class="equipment-table">
+                    <thead>
+                        <tr>
+                            <th>Email Address</th>
+                            <th>Status</th>
+                            <th>Models to Notify</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for recipient in recipients %}
+                        <tr>
+                            <td>
+                                <strong>{{ recipient.email }}</strong>
+                            </td>
+                            <td>
+                                <span class="status-badge {% if recipient.is_active %}status-active{% else %}status-inactive{% endif %}">
+                                    <i class="fas {% if recipient.is_active %}fa-check-circle{% else %}fa-times-circle{% endif %}"></i>
+                                    {{ recipient.is_active|yesno:"Active,Inactive" }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="model-tags">
+                                    {% for m in recipient.models_to_notify.all %}
+                                        <span class="model-tag">{{ m.model_name }}</span>
+                                    {% empty %}
+                                        <em style="color: rgba(255, 255, 255, 0.6);">No models assigned</em>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="action-icons">
+                                    <a href="{% url 'recipient_update' recipient.pk %}" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="{% url 'recipient_delete' recipient.pk %}" title="Delete">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="empty-state">
+                                <i class="fas fa-user-times"></i>
+                                <p>No notification recipients found.</p>
+
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        
+        </div>
+
+        <!-- FOOTER -->
+        <div class="footer">
+            <p>Asset Management System &copy; 2025 | All rights reserved</p>
+            <p><strong>Powered by Hossam Alakwah</strong></p>
+        </div>
+    </div>
+
+</body>
+</html>

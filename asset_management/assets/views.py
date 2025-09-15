@@ -10,16 +10,18 @@ from django.apps import apps
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q, Sum
 from django.forms import inlineformset_factory
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_POST
+from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
 from .download_templates import (
     generate_access_point_template,
@@ -57,6 +59,8 @@ from .forms import (  # ✅ assuming you already created these
     CameraForm,
     FirewallEditForm,
     FirewallForm,
+    NotificationConfigForm,
+    NotificationRecipientForm,
     NVREditForm,
     NVRForm,
     RayaDataCenterVMForm,
@@ -89,6 +93,8 @@ from .models import (
     Employee,
     Firewall,
     FirewallLog,
+    NotificationConfig,
+    NotificationRecipient,
     NVRLog,
     RayaDataCenterVM,
     ReportableField,
@@ -2817,3 +2823,67 @@ def vm_logs(request, vm_id):
     vm = get_object_or_404(VirtualMachine, id=vm_id)
     logs = vm.logs.all()
     return render(request, "infra/vms/vm_logs.html", {"vm": vm, "logs": logs})
+from django.views.generic import TemplateView
+
+
+class NotificationDashboardView(LoginRequiredMixin, PermissionRequiredMixin, TemplateView):
+    permission_required = (
+        'assets.view_notificationconfig',
+        'assets.view_notificationrecipient',
+    )
+    template_name = 'notifications/dashboard.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['configs'] = NotificationConfig.objects.all()
+        context['recipients'] = NotificationRecipient.objects.all()
+        return context
+
+# class NotificationConfigListView(LoginRequiredMixin, PermissionRequiredMixin, ListView):
+#     permission_required = 'assets.view_notificationconfig'
+#     model = NotificationConfig
+#     template_name = 'notifications/config_list.html'
+
+class NotificationConfigCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
+    permission_required = 'assets.add_notificationconfig'
+    model = NotificationConfig
+    form_class = NotificationConfigForm
+    template_name = 'notifications/config_form.html'
+    success_url = reverse_lazy('notification_dashboard')  # Redirect to dashboard
+    
+class NotificationConfigUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
+    permission_required = 'assets.change_notificationconfig'
+    model = NotificationConfig
+    form_class = NotificationConfigForm
+    template_name = 'notifications/config_form.html'
+    success_url = reverse_lazy('notification_dashboard')  # Redirect to dashboard
+
+class NotificationConfigDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+    permission_required = 'assets.delete_notificationconfig'
+    model = NotificationConfig
+    template_name = 'notifications/config_confirm_delete.html'
+    success_url = reverse_lazy('notification_dashboard')  # Redirect to dashboard
+    
+# views.py
+
+
+
+class RecipientCreateView(LoginRequiredMixin, PermissionRequiredMixin, CreateView):
+    permission_required = 'assets.add_notificationrecipient'
+    model = NotificationRecipient
+    form_class = NotificationRecipientForm
+    template_name = 'notifications/recipient_form.html'
+    success_url = reverse_lazy('notification_dashboard') 
+
+class RecipientUpdateView(LoginRequiredMixin, PermissionRequiredMixin, UpdateView):
+    permission_required = 'assets.change_notificationrecipient'
+    model = NotificationRecipient
+    form_class = NotificationRecipientForm
+    template_name = 'notifications/recipient_form.html'
+    success_url = reverse_lazy('notification_dashboard')  
+
+class RecipientDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView):
+    permission_required = 'assets.delete_notificationrecipient'
+    model = NotificationRecipient
+    template_name = 'notifications/recipient_confirm_delete.html'
+    success_url = reverse_lazy('notification_dashboard')  
