@@ -1,13 +1,43 @@
 {% load static %}
 {% load custom_filters %}
 <!DOCTYPE html>
+
 <html>
+    
 <head>
     <title>Dynamic Report Generator</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="stylesheet" href="https://site-assets.fontawesome.com/releases/v6.7.2/css/all.css">
 </head>
+<style>
+    .back-btn {
+    background-color: #007bff;  /* Blue background */
+    color: white;               /* White text */
+    padding: 10px 20px;         /* Padding around the text */
+    
+    position: absolute;         /* Absolute positioning */
+    right: 100px;                 /* Position 20px from the left */
+    top: 50px;                  /* Position 20px from the top */
+    
+    border: none;               /* Remove border */
+    border-radius: 5px;         /* Rounded corners */
+    font-size: 16px;            /* Font size */
+    cursor: pointer;           /* Pointer cursor on hover */
+    transition: background-color 0.3s ease;  /* Smooth hover effect */
+}
+
+.back-btn:hover {
+    background-color: #0056b3;  /* Darker blue when hovered */
+}
+
+
+</style>
 <body>
     <div class="container">
+        <!-- Back Button -->
+        <button onclick="window.location.href='/assets/branches/'" class="back-btn" > Back to Branches</button>
+
         <h1>Dynamic Report Generator</h1>
 
         <form method="get" id="report-form">
@@ -29,12 +59,11 @@
                         {% if field.field_type == 'choice' and field.choices %}
                             <select name="{{ field.field_name }}">
                                 <option value="">-- All --</option>
-{% for choice in field.choices %}
-    <option value="{{ choice.value }}" {% if filters|get_item:field.field_name|stringformat:"s" == choice.value|stringformat:"s" %}selected{% endif %}>
-        {{ choice.label }}
-    </option>
-{% endfor %}
-
+                                {% for choice in field.choices %}
+                                    <option value="{{ choice.value }}" {% if filters|get_item:field.field_name|stringformat:"s" == choice.value|stringformat:"s" %}selected{% endif %}>
+                                        {{ choice.label }}
+                                    </option>
+                                {% endfor %}
                             </select>
                         {% else %}
                             <input type="text" name="{{ field.field_name }}" value="{{ filters|get_item:field.field_name }}">
@@ -42,6 +71,7 @@
                     {% endif %}
                 {% endfor %}
                 <button type="submit">Generate Report</button>
+                <button type="submit" name="export" value="excel">Download as Excel</button>
             {% endif %}
         </form>
 
@@ -68,4 +98,3 @@
         {% endif %}
     </div>
 </body>
-</html>

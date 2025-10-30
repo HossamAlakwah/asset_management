@@ -36,7 +36,7 @@
     <div class="container">
         <div class="header">
             <h1 class="title">All Virtual Machines - Raya Data Center</h1>
-            <a href="{% url 'infrastructure' %}" class="header-back-btn">
+            <a href="{% url 'branches' %}" class="header-back-btn">
                 <i class="fas fa-arrow-left"></i> Back
             </a>
         </div>
@@ -81,7 +81,7 @@
                     <i class="fas fa-file-export"></i> Extract Data
                 </button>
 
-                <a href="{% url 'add_vm' %}" class="btn btn-info" style="text-decoration: none;"> 
+                <a href="{% url 'add_raya_vm' %}" class="btn btn-info" style="text-decoration: none;"> 
                     <i class="fas fa-plus"></i> Add New VM
                 </a>
             </div>
@@ -149,8 +149,8 @@
                         </td>
 
                         <td class="action-icons">
-                            <a href="{% url 'vm_details' vm.id %}" title="View"><i class="fas fa-eye"></i></a>
-                            <a href="{% url 'edit_vm' vm.id %}" title="Edit"><i class="fas fa-edit"></i></a>
+                            <a href="{% url 'raya_vm_details' vm.id %}" title="View"><i class="fas fa-eye"></i></a>
+                            <a href="{% url 'edit_raya_vm' vm.id %}" title="Edit"><i class="fas fa-edit"></i></a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -164,14 +164,14 @@
         <div class="modal-content">
             <span class="close">&times;</span>
             <h2>Upload Excel File</h2>
-            <form method="post" action="{% url 'upload_vms' slug='raya' %}" enctype="multipart/form-data">
+            <form method="post" action="{% url 'upload_raya_vms' slug='raya' %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 <input type="file" name="excel_file" required accept=".xls,.xlsx" />
                 <br><br>
                 <button type="submit">Upload</button>
             </form>
             <br>
-            <a href="{% url 'download_vm_template' %}" class="btn btn-outline-light" style="text-decoration: none;">
+            <a href="{% url 'download_raya_vm_template' %}" class="btn btn-outline-light" style="text-decoration: none;">
                 <i class="fas fa-file-download"></i> Download Template
             </a>
         </div>

@@ -94,7 +94,8 @@ DATABASES = {
         'NAME': 'assets',    
         'USER': 'postgres',            
         'PASSWORD': '22122001',     
-        'HOST': '10.1.50.23',              
+        #'HOST': '10.1.50.27',    
+        'HOST': '192.168.1.9',          
         'PORT': '5432',                   
     }
 }
@@ -149,7 +150,6 @@ LOGIN_REDIRECT_URL = '/assets/branches/'  # after successful login
 LOGOUT_REDIRECT_URL = '/'  # send to login page after logout
 
 # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development
-# settings.py
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  
 EMAIL_HOST = 'smtp.office365.com'  
 EMAIL_PORT = 587

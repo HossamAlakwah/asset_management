@@ -139,13 +139,13 @@ urlpatterns = [
     path('ups/template/download/', views.download_ups_template, name='download_ups_template'),
     
     # Raya Data Center
-    path('raya-data-center/', views.all_vms, name='all_vms'),
-    path('raya-data-center/add/', views.create_vm, name='add_vm'),
-    path('raya-data-center/<int:vm_id>/', views.vm_details, name='vm_details'),
-    path('raya-data-center/<int:vm_id>/edit/', views.edit_vm, name='edit_vm'),
-    path('branches/<slug:slug>/upload-vms/', views.upload_vms, name='upload_vms'),
-    path('branches/extract-vms/', views.extract_vm_data, name='extract_vms_bulk'),
-    path('raya-data-center/template/download/', views.download_vm_template, name='download_vm_template'),
+    path('raya-data-center/', views.all_raya_vms, name='all_raya_vms'),
+    path('raya-data-center/add/', views.create_raya_vm, name='add_raya_vm'),
+    path('raya-data-center/<int:vm_id>/', views.raya_vm_details, name='raya_vm_details'),
+    path('raya-data-center/<int:vm_id>/edit/', views.edit_raya_vm, name='edit_raya_vm'),
+    path('branches/<slug:slug>/upload-vms/', views.upload_raya_vms, name='upload_raya_vms'),
+    path('raya-data-center/extract-vms/', views.extract_vm_data, name='extract_vms_bulk'),
+    path('raya-data-center/template/download/', views.download_raya_vm_template, name='download_raya_vm_template'),
     
     # === ZK Devices ===
     path('zks', views.all_zk_devices, name='all_zk_devices'),
