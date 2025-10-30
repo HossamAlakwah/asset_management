@@ -41,7 +41,7 @@
     <div class="glass-card card-accent-top">
         <h2 class="section-title"><i class="fas fa-cogs"></i> Raya Data Center Details</h2>
 
-        <form method="POST" action="{% url 'edit_raya_asset' raya_asset.id %}" class="form-grid">
+        <form method="POST" action="{% url 'edit_raya_vm' vm.id %}" class="form-grid">
             {% csrf_token %}
 
             {% if messages %}

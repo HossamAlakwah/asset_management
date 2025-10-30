@@ -22,6 +22,8 @@ from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font
 
 from .download_templates import (
     generate_access_point_template,
@@ -80,7 +82,7 @@ from .forms import (  # ✅ assuming you already created these
     ZKDeviceEditForm,
     ZKDeviceForm,
 )
-from .models import (
+from .models import (  # Adjust as needed
     NVR,
     UPS,
     AccessPoint,
@@ -680,10 +682,70 @@ This view allows users to select a model and apply filters to generate a report.
 
 
 
+# def dynamic_report_view(request):
+#     report_model_id = request.GET.get("model")
+#     filters = request.GET.copy()
+#     filters.pop("model", None)
+
+#     selected_model = None
+#     fields = []
+#     data = []
+
+#     if report_model_id:
+#         selected_model = ReportableModel.objects.get(id=report_model_id)
+#         fields = ReportableField.objects.filter(model=selected_model, is_visible=True)
+
+#         # Dynamically get model class
+#         app_label, model_name = selected_model.model_path.split(".")
+#         model_class = apps.get_model(app_label, model_name)
+
+#         queryset = model_class.objects.all()
+
+#         # Apply filters
+#         for field in fields:
+#             if field.is_filter:
+#                 value = request.GET.get(field.field_name)
+#                 if value:
+#                     filter_key = field.field_name
+#                     queryset = queryset.filter(**{filter_key: value})
+
+#         data = queryset.values(*[f.field_name for f in fields])
+
+#         # for obj in queryset:
+#         #     row = {}
+#         #     for field in fields:
+#         #         field_name = field.field_name
+#         #         value = getattr(obj, field_name)
+
+#         #         # If it's a ForeignKey, get its string representation
+#         #         if hasattr(value, '__str__') and not isinstance(value, (str, int, float, bool)):
+#         #             row[field_name] = str(value) if value else "None"
+#         #         else:
+#         #             row[field_name] = value
+
+#         #     data.append(row)
+#     context = {
+#         "report_models": ReportableModel.objects.all(),
+#         "selected_model": selected_model,
+#         "fields": fields,
+#         "data": data,
+#         "filters": request.GET,
+#     }
+
+from django.apps import apps
+
+#     return render(request, "reports/dynamic_report.html", context)
+from django.shortcuts import render
+
+from .models import ReportableField, ReportableModel  # Adjust import to your project
+
+
 def dynamic_report_view(request):
     report_model_id = request.GET.get("model")
+    export_format = request.GET.get("export")
     filters = request.GET.copy()
     filters.pop("model", None)
+    filters.pop("export", None)
 
     selected_model = None
     fields = []
@@ -707,21 +769,23 @@ def dynamic_report_view(request):
                     filter_key = field.field_name
                     queryset = queryset.filter(**{filter_key: value})
 
-        data = queryset.values(*[f.field_name for f in fields])
+        # Build data list with readable FK names
+        for obj in queryset:
+            row = {}
+            for field in fields:
+                field_name = field.field_name
+                value = getattr(obj, field_name, None)
 
-        # for obj in queryset:
-        #     row = {}
-        #     for field in fields:
-        #         field_name = field.field_name
-        #         value = getattr(obj, field_name)
+                if hasattr(value, '__str__') and not isinstance(value, (str, int, float, bool)):
+                    row[field_name] = str(value) if value else "None"
+                else:
+                    row[field_name] = value
+            data.append(row)
 
-        #         # If it's a ForeignKey, get its string representation
-        #         if hasattr(value, '__str__') and not isinstance(value, (str, int, float, bool)):
-        #             row[field_name] = str(value) if value else "None"
-        #         else:
-        #             row[field_name] = value
+        # Export to Excel if requested
+        if export_format == 'excel':
+            return export_report_to_excel(fields, data, selected_model.name)
 
-        #     data.append(row)
     context = {
         "report_models": ReportableModel.objects.all(),
         "selected_model": selected_model,
@@ -731,6 +795,45 @@ def dynamic_report_view(request):
     }
 
     return render(request, "reports/dynamic_report.html", context)
+
+def export_report_to_excel(fields, data, report_name="Report"):
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Data"
+
+    # Header Row
+    header_font = Font(bold=True)
+    for col_num, field in enumerate(fields, 1):
+        cell = ws.cell(row=1, column=col_num, value=field.display_name)
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
+    # Data Rows
+    for row_num, row_data in enumerate(data, start=2):
+        for col_num, field in enumerate(fields, 1):
+            value = row_data.get(field.field_name, "")
+            cell = ws.cell(row=row_num, column=col_num, value=value)
+            cell.alignment = Alignment(horizontal="left")
+
+    # Auto-size columns
+    for col in ws.columns:
+        max_length = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            try:
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+            except:
+                pass
+        ws.column_dimensions[col_letter].width = max_length + 2
+
+    # Prepare response
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="{report_name}.xlsx"'
+    wb.save(response)
+    return response
 
 
 
@@ -2437,7 +2540,7 @@ def extract_ups_data(request, slug):
 Raya data center part 
 '''
 @login_required
-def all_vms(request):
+def all_raya_vms(request):
     vms = RayaDataCenterVM.objects.all().order_by('id')
     all_count = vms.count()
     uat_count = vms.filter(environment="uat").count()
@@ -2456,13 +2559,13 @@ def all_vms(request):
 
 
 @xframe_options_exempt
-def vm_details(request, vm_id):
+def raya_vm_details(request, vm_id):
     vm = get_object_or_404(RayaDataCenterVM, pk=vm_id)
     return render(request, 'raya/vm_details.html', {'vm': vm})
 
 
 @login_required
-def edit_vm(request, vm_id):
+def edit_raya_vm(request, vm_id):
     vm = get_object_or_404(RayaDataCenterVM, pk=vm_id)
 
     if request.method == 'POST':
@@ -2480,12 +2583,12 @@ def edit_vm(request, vm_id):
     return render(request, 'raya/vm_edit.html', {
         'form': form,
         'vm': vm,
-        'status': vm.status,
+        #'status': vm.status,
     })
 
 
 @login_required
-def create_vm(request):
+def create_raya_vm(request):
     if request.method == 'POST':
         form = RayaDataCenterVMForm(request.POST)
         if form.is_valid():
@@ -2509,7 +2612,7 @@ def create_vm(request):
 
 @require_POST
 @login_required
-def upload_vms(request, slug):
+def upload_raya_vms(request, slug):
     branch = get_object_or_404(Branch, slug=slug)
     if 'excel_file' in request.FILES:
         excel_file = request.FILES['excel_file']
@@ -2524,7 +2627,7 @@ def upload_vms(request, slug):
 
 
 @login_required
-def download_vm_template(request):
+def download_raya_vm_template(request):
     return generate_raya_datacenter_template()
 
 

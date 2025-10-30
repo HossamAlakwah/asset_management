@@ -1694,9 +1694,11 @@ def generate_raya_report(request, selected_format):
         return None
 
     headers = [
-        'Name', 'Serial Number', 'IP Address',
+        'Name', #'Serial Number',
+        'IP Address',
         'Contract Start Date', 'Contract End Date',
-        'Renewal Date', 'Comment', 'Created By', 'Created At'
+        'Renewal Date', #'Comment',
+        'Created By', 'Created At'
     ]
 
     # ===== Excel Report =====
@@ -1714,12 +1716,12 @@ def generate_raya_report(request, selected_format):
         for row_num, dev in enumerate(devices, start=2):
             row_data = [
                 dev.name,
-                dev.serial_number,
+                #dev.serial_number or '',
                 dev.ip_address or '',
-                dev.contract_start_date.strftime('%Y-%m-%d') if dev.contract_start_date else '',
-                dev.contract_end_date.strftime('%Y-%m-%d') if dev.contract_end_date else '',
+                dev.contract_start.strftime('%Y-%m-%d') if dev.contract_start else '',
+                dev.contract_end.strftime('%Y-%m-%d') if dev.contract_end else '',
                 dev.renewal_date.strftime('%Y-%m-%d') if dev.renewal_date else '',
-                dev.comment or '',
+                #dev.comment or '',
                 dev.created_by.username if dev.created_by else '',
                 dev.created_at.strftime('%Y-%m-%d %H:%M') if dev.created_at else '',
             ]
@@ -1802,10 +1804,10 @@ def generate_raya_report(request, selected_format):
                 <td>{escape(dev.name)}</td>
                 <td>{escape(dev.serial_number)}</td>
                 <td>{escape(dev.ip_address) if dev.ip_address else '-'}</td>
-                <td>{dev.contract_start_date.strftime('%Y-%m-%d') if dev.contract_start_date else '-'}</td>
-                <td>{dev.contract_end_date.strftime('%Y-%m-%d') if dev.contract_end_date else '-'}</td>
+                <td>{dev.contract_start.strftime('%Y-%m-%d') if dev.contract_start else '-'}</td>
+                <td>{dev.contract_end.strftime('%Y-%m-%d') if dev.contract_end else '-'}</td>
                 <td>{dev.renewal_date.strftime('%Y-%m-%d') if dev.renewal_date else '-'}</td>
-                <td>{escape(dev.comment) if dev.comment else '-'}</td>
+                <td>{escape(dev.comments) if dev.comments else '-'}</td>
                 <td>{escape(dev.created_by.username) if dev.created_by else '-'}</td>
                 <td>{dev.created_at.strftime('%Y-%m-%d %H:%M') if dev.created_at else '-'}</td>
             </tr>
