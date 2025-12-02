@@ -172,6 +172,7 @@ employee view and create employee
 This view allows users to create a new employee and assign an asset if available.
 
 '''
+@login_required
 def employees_view(request):
     unique_departments = list(
         Employee.objects.values_list('department', flat=True).distinct()
@@ -398,6 +399,7 @@ def all_assets(request):
 def download_asset_template(request):
     return generate_asset_template()
 
+@login_required
 def all_assets_log(request, slug):
     if slug == 'All':
         logs = AssetLog.objects.all().order_by('-change_time')
@@ -494,6 +496,7 @@ def extract_assets_data(request, slug):
     return response
 
 @xframe_options_exempt
+@login_required
 def asset_details(request, asset_id):
     asset = get_object_or_404(Asset, pk=asset_id)
     print(asset)
@@ -501,7 +504,7 @@ def asset_details(request, asset_id):
 
 
 
-
+@login_required
 def laptop_acknowledgment(request):
     return render(request, 'assets/test.html')
 
@@ -740,6 +743,7 @@ from django.shortcuts import render
 from .models import ReportableField, ReportableModel  # Adjust import to your project
 
 
+@login_required
 def dynamic_report_view(request):
     report_model_id = request.GET.get("model")
     export_format = request.GET.get("export")
@@ -796,6 +800,7 @@ def dynamic_report_view(request):
 
     return render(request, "reports/dynamic_report.html", context)
 
+@login_required
 def export_report_to_excel(fields, data, report_name="Report"):
     wb = Workbook()
     ws = wb.active
@@ -837,7 +842,7 @@ def export_report_to_excel(fields, data, report_name="Report"):
 
 
 
-
+@login_required
 def get_model_fields(request):
     model_path = request.GET.get('model_path')  # e.g. "assets.Asset"
     if not model_path or '.' not in model_path:
@@ -1312,7 +1317,7 @@ def upload_telephones(request, slug):
 
     return redirect('all_telephones')
 
-
+@login_required
 def telephone_details(request, telephone_id):
     telephone = get_object_or_404(Telephone, pk=telephone_id)
     print(telephone)
@@ -1336,7 +1341,7 @@ def unassign_telephone(request, telephone_id, employee_id):
     return redirect('edit_employee', employee_id=employee_id)
 
 '''Infra part'''
-
+@login_required
 def infrastructure_assets_view(request):
 
     return render(request, 'infra/infra.html')
@@ -1393,6 +1398,7 @@ def camera_details(request, camera_id):
     print(camera)
     return render(request, 'infra/cameras/camera_details.html', {'camera': camera})
 
+@login_required
 def edit_camera(request, camera_id):
     camera = get_object_or_404(Camera, pk=camera_id)
     stock_branch = Branch.objects.filter(name__iexact='stock').first()
@@ -1446,7 +1452,7 @@ def edit_camera(request, camera_id):
         'status': camera.status,
     })
 
-
+@login_required
 def add_camera(request):
     if request.method == 'POST':
         form = CameraForm(request.POST)
@@ -1581,12 +1587,13 @@ def branch_nvrs(request, slug):
 
     return render(request, 'infra/nvrs/nvrs_by_branch.html', context)
 
-
+@login_required
 @xframe_options_exempt
 def nvr_details(request, nvr_id):
     nvr = get_object_or_404(NVR, pk=nvr_id)
     return render(request, 'infra/nvrs/nvr_details.html', {'nvr': nvr})
 
+@login_required
 def edit_nvr(request, nvr_id):
     nvr = get_object_or_404(NVR, pk=nvr_id)
 
@@ -1909,6 +1916,7 @@ def branch_switches(request, slug):
 
 #switch details
 @xframe_options_exempt
+@login_required
 def switch_details(request, switch_id):
     switch = get_object_or_404(Switch, pk=switch_id)
     return render(request, 'infra/switches/switch_details.html', {'switch': switch})
@@ -2081,7 +2089,7 @@ def branch_access_points(request, slug):
     }
     return render(request, 'infra/access_points/access_points_by_branch.html', context)
 
-
+@login_required
 @xframe_options_exempt
 def access_point_details(request, access_point_id):
     ap = get_object_or_404(AccessPoint, pk=access_point_id)
@@ -2242,6 +2250,7 @@ def branch_routers(request, slug):
 
 
 @xframe_options_exempt
+@login_required
 def router_details(request, router_id):
     router = get_object_or_404(Router, pk=router_id)
     return render(request, 'infra/routers/router_details.html', {'router': router})
@@ -2414,6 +2423,7 @@ def branch_ups(request, slug):
 
 
 @xframe_options_exempt
+@login_required
 def ups_details(request, ups_id):
     ups_device = get_object_or_404(UPS, pk=ups_id)
     return render(request, 'infra/ups/ups_details.html', {'ups_device': ups_device})
@@ -2559,6 +2569,7 @@ def all_raya_vms(request):
 
 
 @xframe_options_exempt
+@login_required
 def raya_vm_details(request, vm_id):
     vm = get_object_or_404(RayaDataCenterVM, pk=vm_id)
     return render(request, 'raya/vm_details.html', {'vm': vm})
@@ -2689,6 +2700,7 @@ def branch_zk_devices(request, slug):
 
 
 @xframe_options_exempt
+@login_required
 def zk_device_details(request, device_id):
     device = get_object_or_404(ZKDevice, pk=device_id)
     return render(request, 'infra/zk_devices/zk_details.html', {'device': device})
@@ -2809,12 +2821,15 @@ def extract_zk_devices(request, slug):
 Servers Part
 '''
 # List all servers
+@login_required
 def all_servers(request):
     servers = Server.objects.all().order_by("hostname")
 
     return render(request, "infra/servers/all_servers.html", {"servers": servers})
 
 # Server details with nested VMs
+
+@login_required
 def server_details(request, server_id):
     server = get_object_or_404(Server, id=server_id)
     vms = server.vms.all().order_by("name")  # ✅ nested VMs
@@ -2824,6 +2839,7 @@ def server_details(request, server_id):
     })
 
 # Add a new server
+@login_required
 def add_server(request):
     if request.method == "POST":
         form = ServerForm(request.POST)
@@ -2837,7 +2853,7 @@ def add_server(request):
         form = ServerForm()
     return render(request, "infra/servers/server_create.html", {"form": form})
 # views.py
-
+@login_required
 def server_resources(request, server_id):
     try:
         server = Server.objects.get(pk=server_id)
@@ -2851,6 +2867,7 @@ def server_resources(request, server_id):
     return JsonResponse(data)
 
 # Add a new server
+@login_required
 def edit_server(request, server_id):
     server = get_object_or_404(Server, id=server_id)
     if request.method == "POST":
@@ -2880,16 +2897,19 @@ def server_logs(request):
 VMs part
 '''
 # List all VMs
+@login_required
 def all_vms(request):
     vms = VirtualMachine.objects.select_related("server").all().order_by("server__hostname", "name")
     return render(request, "infra/vms/all_vms.html", {"vms": vms})
 
 # VM details with link back to parent server
+@login_required
 def vm_details(request, vm_id):
     vm = get_object_or_404(VirtualMachine, id=vm_id)
     return render(request, "infra/vms/vm_details.html", {"vm": vm, "server": vm.server})
 
 # Add a new VM
+@login_required
 def add_vm(request):
     if request.method == "POST":
         form = VirtualMachineForm(request.POST)
@@ -2904,6 +2924,7 @@ def add_vm(request):
     return render(request, "infra/vms/vm_create.html", {"form": form})
 
 # Edit an existing VM
+@login_required
 def edit_vm(request, vm_id):
     vm = get_object_or_404(VirtualMachine, id=vm_id)
 
@@ -2922,6 +2943,7 @@ def edit_vm(request, vm_id):
     })
 
 # Logs for a specific VM
+@login_required
 def vm_logs(request, vm_id):
     vm = get_object_or_404(VirtualMachine, id=vm_id)
     logs = vm.logs.all()

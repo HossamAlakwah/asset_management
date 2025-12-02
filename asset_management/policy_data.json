@@ -1,0 +1,16 @@
+{
+  "requestId": 17676290,
+  "requestDate": "2025-11-30T16:45:57Z",
+  "env": "UAT",
+  "response": [
+    {
+      "arrayItemNo": 1,
+      "policyNo": "5/00069",
+      "FRAPolicyId": "EC4676BE51F55A175F59AEDC2DD1ACBEDD9C9C44",
+      "errorPart": "policies",
+      "messageCode": "1100",
+      "messageStatus": "Success",
+      "MessageDesc": "Policy created successfully"
+    }
+  ]
+}
