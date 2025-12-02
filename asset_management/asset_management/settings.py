@@ -113,8 +113,8 @@ DATABASES = {
         "NAME": "assets",
         "USER": "postgres",
         "PASSWORD": "22122001",
-        #"HOST": "10.1.50.22",
-        "HOST": "10.3.10.107",
+        "HOST": "10.1.50.22",
+        #"HOST": "10.3.10.107",
         "PORT": "5432",
     }
 }
