@@ -1,7 +1,8 @@
 import io
 from datetime import date
 from itertools import count
-from turtle import Screen
+
+#from turtle import Screen
 from urllib.parse import unquote, urlparse
 
 import pandas as pd
