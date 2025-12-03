@@ -29,7 +29,6 @@ from .models import (
 the generate_assets_report function to handle both HTML and Excel formats
 This function generates a report based on the selected branch and status, and returns it in the requested format.'''
 def generate_assets_report(request, branch, selected_status, selected_format):
-    print(branch, type(branch))
     if (str(branch))=='All':
         assets = Asset.objects.all()
         if selected_status and selected_status != 'All':
@@ -88,7 +87,7 @@ def generate_assets_report(request, branch, selected_status, selected_format):
                 asset.product,
                 asset.serial,
                 asset.status,
-                asset.employee_name if asset.employee_name else '',
+                str(asset.employee_name) if asset.employee_name else '',
                 warranty_date,
                 on_hand_date,
                 return_date,

@@ -482,9 +482,14 @@ def upload_assets(request, slug):
 
 @login_required
 def extract_assets_data(request, slug):
-    branch = get_object_or_404(Branch, slug=slug)
-    
 
+    # Handle the special "All" case
+    if slug == "All":
+        branch = "All"
+        print('all')
+    else:
+        branch = get_object_or_404(Branch, slug=slug)
+        
     selected_status = request.POST.get('status') 
     selected_format = request.POST.get('format') 
 
