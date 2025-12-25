@@ -806,7 +806,6 @@ def dynamic_report_view(request):
 
     return render(request, "reports/dynamic_report.html", context)
 
-@login_required
 def export_report_to_excel(fields, data, report_name="Report"):
     wb = Workbook()
     ws = wb.active
