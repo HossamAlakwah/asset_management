@@ -649,37 +649,42 @@ def edit_asset(request, asset_id):
 
 
 
+
+
 @login_required
 def add_asset(request):
     if request.method == 'POST':
         form = AssetForm(request.POST)
         formset = StorageDeviceFormSet(request.POST)
-        if form.is_valid() and formset.is_valid():
-            asset = form.save(commit=False)
-            asset.created_by = request.user
-            asset.status = 'Stock'
-            asset.branch = Branch.objects.get(slug='stock')
-            asset._changed_by = request.user
-            asset.save()
 
-            storage_devices = formset.save(commit=False)
-            for device in storage_devices:
-                device.asset = asset
-                device.save()
-            formset.save_m2m()
+        if form.is_valid() and formset.is_valid():
+            with transaction.atomic():
+                asset = form.save(commit=False)
+                asset.created_by = request.user
+                asset.status = 'Stock'
+                asset.branch = Branch.objects.get(slug='stock')
+                asset._changed_by = request.user
+                asset.save()
+
+                # 🔴 KEY FIX: bind asset instance
+                formset.instance = asset
+                formset.save()
 
             messages.success(request, 'Asset added successfully.')
             return redirect('all_assets')
+
         else:
             messages.error(request, 'Please correct the errors below.')
+
     else:
         form = AssetForm()
-        formset = StorageDeviceFormSet() 
+        formset = StorageDeviceFormSet()
 
     return render(request, 'assets/asset_create.html', {
         'form': form,
-        'formset': formset,  
+        'formset': formset,
     })
+
 
 ##############################################################################    
 
