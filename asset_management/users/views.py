@@ -115,6 +115,7 @@ class AppLoginView(LoginView):
             return redirect("login")
         backend = request.session.get(PENDING_BACKEND) or None
         next_url = request.session.get(PENDING_NEXT) or self.get_success_url()
+        clear_username_failures(user.username)
         _clear_pending(request)
         login(request, user, backend=backend)
         request.session["two_factor_verified"] = True

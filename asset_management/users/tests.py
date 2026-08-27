@@ -93,6 +93,28 @@ class AuthSecurityTests(TestCase):
         app = self.client.get("/app/")
         self.assertEqual(app.status_code, 200)
 
+    def test_successful_otp_clears_failed_otp_attempts(self):
+        device = start_setup(self.user)
+        confirm_setup(self.user, pyotp.TOTP(device.secret).now())
+        password_ok = self.client.post(
+            "/login/",
+            {"username": "lock.user", "password": "lock-pass-123"},
+        )
+        self.assertContains(password_ok, "otp_step")
+        failed = self.client.post("/login/", {"otp_step": "1", "otp": "000000"})
+        self.assertEqual(failed.status_code, 200)
+        self.assertTrue(
+            LoginLock.objects.filter(kind="username", value="lock.user").exists()
+        )
+        otp_ok = self.client.post(
+            "/login/",
+            {"otp_step": "1", "otp": pyotp.TOTP(self.user.totp_device.secret).now()},
+        )
+        self.assertEqual(otp_ok.status_code, 302)
+        self.assertFalse(
+            LoginLock.objects.filter(kind="username", value="lock.user").exists()
+        )
+
     def test_jwt_refuses_token_until_2fa_is_enrolled(self):
         denied = self.api.post(
             "/api/v1/auth/token/",

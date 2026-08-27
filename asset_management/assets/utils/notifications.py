@@ -64,7 +64,14 @@ def evaluate_config(notification, send=True):
             "emailed": 0,
         }
     count = stock_count_for(notification)
-    threshold = int(notification.condition_value)
+    try:
+        threshold = int(str(notification.condition_value).strip())
+    except (TypeError, ValueError):
+        return {
+            "triggered": False,
+            "reason": "Threshold must be a whole number.",
+            "emailed": 0,
+        }
     triggered = count <= threshold
     emailed = 0
     if triggered and send:

@@ -291,6 +291,22 @@ class SmokeTest(TestCase):
         logs = list(LaptopLog.objects.filter(laptop=assigned).order_by("id"))
         self.assertEqual([row.new_status for row in logs], ["Stock", "In Use"])
 
+        short_book = Workbook()
+        short_sheet = short_book.active
+        short_sheet.append(["Product", "Serial", "Status", "Branch", "Employee Email"])
+        short_sheet.append(["Short Box", "SMOKE-XLS-SHORT"])
+        short_payload = BytesIO()
+        short_book.save(short_payload)
+        short_payload.seek(0)
+        short_payload.name = "laptops-short.xlsx"
+        short_import = self.client.post(
+            "/api/v1/laptops/import/", {"file": short_payload}, format="multipart"
+        )
+        self.assertEqual(short_import.status_code, 200, short_import.data)
+        self.assertEqual(short_import.data["created"], 1)
+        self.assertEqual(short_import.data["failed"], 0)
+        self.assertTrue(Laptop.objects.filter(serial="SMOKE-XLS-SHORT").exists())
+
     def test_create_status_validation_and_in_use_logs(self):
         self.auth(self.admin)
         denied_in_use = self.client.post(
@@ -490,6 +506,31 @@ class SmokeTest(TestCase):
         self.assertEqual(run.status_code, 200, run.data)
         self.assertTrue(run.data["triggered"])
         self.assertEqual(run.data["emailed"], 1)
+
+        rejected = self.client.post(
+            "/api/v1/notification-configs/",
+            {
+                "model_name": "Desktop",
+                "condition_type": "stock_count",
+                "condition_value": "not-a-number",
+                "is_active": True,
+            },
+            format="json",
+        )
+        self.assertEqual(rejected.status_code, 400, rejected.data)
+        self.assertIn("condition_value", rejected.data)
+
+        bad = NotificationConfig.objects.create(
+            model_name="Laptop",
+            condition_type="stock_count",
+            condition_value="not-a-number",
+            is_active=True,
+        )
+        bad_run = self.client.post(f"/api/v1/notification-configs/{bad.id}/run/")
+        self.assertEqual(bad_run.status_code, 200, bad_run.data)
+        self.assertFalse(bad_run.data["triggered"])
+        self.assertEqual(bad_run.data["emailed"], 0)
+        self.assertIn("whole number", bad_run.data["reason"])
 
     def test_pages_load(self):
         login = self.client.get("/login/")

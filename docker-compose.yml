@@ -28,7 +28,10 @@ services:
       POSTGRES_PASSWORD: assets
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-127.0.0.1,localhost,web}
       DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-http://127.0.0.1:8000,http://localhost:8000}
-      TRUST_PROXY_HEADERS: "true"
+      # Keep false unless the app sits behind a reverse proxy that sets
+      # X-Forwarded-For / X-Forwarded-Proto. Direct port 8000 publishes
+      # those headers to the client and would let lockouts be spoofed.
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
     depends_on:
       db:
         condition: service_healthy

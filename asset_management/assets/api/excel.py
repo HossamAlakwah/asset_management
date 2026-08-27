@@ -270,7 +270,8 @@ class ExcelIOMixin:
             payload = {}
             row_errors = {}
             for column in columns:
-                raw = row[headers[column.header.lower()]]
+                index = headers[column.header.lower()]
+                raw = row[index] if index < len(row) else None
                 value = _normalise(raw)
                 if value is None:
                     continue

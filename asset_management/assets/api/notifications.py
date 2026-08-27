@@ -33,6 +33,13 @@ class NotificationConfigSerializer(serializers.ModelSerializer):
     def get_subscriber_count(self, obj):
         return obj.subscribers.filter(is_active=True).count()
 
+    def validate_condition_value(self, value):
+        try:
+            int(str(value).strip())
+        except (TypeError, ValueError):
+            raise serializers.ValidationError("Threshold must be a whole number.")
+        return str(value).strip()
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data["recipients"] = list(
