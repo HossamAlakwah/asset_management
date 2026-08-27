@@ -1,0 +1,63 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <meta name="theme-color" content="#050814">
+    <title>Asset Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+    <div class="aurora" aria-hidden="true"></div>
+    <div class="sidebar-overlay" id="sidebar-overlay" hidden></div>
+    <div class="shell">
+        <aside class="sidebar" id="sidebar">
+            <div class="brand">
+                <span class="brand-mark">AC</span>
+                <div>
+                    <strong>Asset Control</strong>
+                    <small>IT inventory</small>
+                </div>
+            </div>
+            <nav id="nav" class="nav"></nav>
+        </aside>
+        <div class="main">
+            <header class="topbar">
+                <button class="icon-btn" id="menu-toggle" type="button" aria-label="Toggle menu">☰</button>
+                <div class="search-wrap">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+                    <input id="global-search" type="search" placeholder="Search this list…" autocomplete="off">
+                    <kbd class="search-kbd">/</kbd>
+                </div>
+                <div class="topbar-actions">
+                    <a class="ghost" href="/api/docs/" target="_blank" rel="noopener">API docs</a>
+                    <a class="user-chip" id="user-chip" href="#/security"></a>
+                    <form method="post" action="{% url 'logout' %}">
+                        {% csrf_token %}
+                        <button class="ghost" type="submit">Log out</button>
+                    </form>
+                </div>
+            </header>
+            <div id="toast" class="toast" hidden></div>
+            <section id="view" class="view"></section>
+        </div>
+    </div>
+    <div id="drawer" class="drawer" hidden>
+        <div class="drawer-panel">
+            <header class="drawer-head">
+                <h2 id="drawer-title">Record</h2>
+                <button class="icon-btn" id="drawer-close" type="button" aria-label="Close">✕</button>
+            </header>
+            <nav id="drawer-tabs" class="drawer-tabs" hidden></nav>
+            <div id="drawer-body" class="drawer-body"></div>
+            <footer id="drawer-foot" class="drawer-foot" hidden></footer>
+        </div>
+    </div>
+    <script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>

@@ -1,3 +1,0 @@
-git add .
-git commit -m "CSS to staticfiles"
-git push origin main

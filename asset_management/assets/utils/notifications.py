@@ -1,62 +1,39 @@
+import logging
+
 from django.apps import apps
 from django.conf import settings
 from django.core.mail import send_mail
 
-from assets.models import NotificationConfig
+from assets.models import NotificationConfig, NotificationRecipient, SentNotification
+
+logger = logging.getLogger(__name__)
 
 
-def check_stock_levels():
-    """
-    Check all configured stock levels and send notifications if needed
-    """
-    # Get all active notification configurations
-    notifications = NotificationConfig.objects.filter(is_active=True)
-    
-    for notification in notifications:
-        try:
-            # Get the model class
-            model_class = apps.get_model('assets', notification.model_name)
-            
-            if notification.condition_type == 'stock_count':
-                # Count items in stock for this model
-                in_stock_count = model_class.objects.filter(status='Stock').count()
-                threshold = int(notification.condition_value)
-                print(in_stock_count)
-                print(threshold)
-                if in_stock_count <= threshold:
-                    send_stock_notification(notification, in_stock_count, threshold)
-            
-        except Exception as e:
-            # Log error but don't break the entire process
-            print(f"Error checking notification {notification}: {e}")
-            # You might want to add proper logging here
+def stock_count_for(notification):
+    model_class = apps.get_model("assets", notification.model_name)
+    return model_class.objects.filter(status="Stock").count()
+
+
+def render_message(notification, current_count, threshold):
+    model_name = notification.get_model_name_display()
+    if notification.notification_message:
+        return notification.notification_message.format(
+            model=model_name,
+            count=current_count,
+            threshold=threshold,
+        )
+    return (
+        f"Low stock alert: {model_name} stock is now {current_count}, "
+        f"which is at or below the threshold of {threshold}."
+    )
 
 
 def send_stock_notification(notification, current_count, threshold):
-    """
-    Send notification for low stock
-    """
-    from assets.models import NotificationRecipient, SentNotification
-    
+    """Email every subscriber for this rule. Returns how many messages were sent."""
+    message = render_message(notification, current_count, threshold)
     model_name = notification.get_model_name_display()
-    
-    # Prepare message
-    if notification.notification_message:
-        message = notification.notification_message.format(
-            model=model_name,
-            count=current_count,
-            threshold=threshold
-        )
-    else:
-        message = f"Low stock alert: {model_name} stock is now {current_count}, which is at or below the threshold of {threshold}."
-    
-    # Get recipients for this notification
-    recipients = NotificationRecipient.objects.filter(
-        is_active=True,
-        models_to_notify=notification
-    )
-    
-    # Send emails
+    emailed = 0
+    recipients = notification.subscribers.filter(is_active=True)
     for recipient in recipients:
         try:
             send_mail(
@@ -66,15 +43,45 @@ def send_stock_notification(notification, current_count, threshold):
                 recipient_list=[recipient.email],
                 fail_silently=False,
             )
-            
-            # Record that we sent this notification
             SentNotification.objects.create(
                 config=notification,
                 recipient=recipient,
                 triggered_by=f"{model_name} stock count",
-                message=message
+                message=message,
             )
-            print(f"Sent notification to {recipient.email} about {model_name}")
-            
-        except Exception as e:
-            print(f"Failed to send email to {recipient.email}: {e}")
+            emailed += 1
+        except Exception:
+            logger.exception("Failed to email %s", recipient.email)
+    return emailed
+
+
+def evaluate_config(notification, send=True):
+    """Check one rule. Optionally send mail if it is currently triggered."""
+    if notification.condition_type != "stock_count":
+        return {
+            "triggered": False,
+            "reason": "Only stock-count alerts are supported.",
+            "emailed": 0,
+        }
+    count = stock_count_for(notification)
+    threshold = int(notification.condition_value)
+    triggered = count <= threshold
+    emailed = 0
+    if triggered and send:
+        emailed = send_stock_notification(notification, count, threshold)
+    return {
+        "triggered": triggered,
+        "stock": count,
+        "threshold": threshold,
+        "emailed": emailed,
+        "recipients": notification.subscribers.filter(is_active=True).count(),
+    }
+
+
+def check_stock_levels():
+    """Send low-stock alerts for every active notification rule."""
+    for notification in NotificationConfig.objects.filter(is_active=True):
+        try:
+            evaluate_config(notification, send=True)
+        except Exception:
+            logger.exception("Failed checking notification %s", notification)

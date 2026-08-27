@@ -1,6 +1,0 @@
-back table data
-pg_dump -U postgres -d assets -t assets_screen --data-only -f employee_data_only.sql
-
-
-restore it
-psql -h 10.1.50.241 -U postgres -d assets -f employee_data_only.sql
